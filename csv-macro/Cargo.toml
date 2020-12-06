@@ -1,0 +1,15 @@
+[package]
+name = "csv-macro"
+version = "0.1.0"
+authors = ["Yurihaia <17830663+Yurihaia@users.noreply.github.com>"]
+description = "Internal macro library to embed CSVs in a const context"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.53", features = [ "printing" ] }
+quote = "1.0.7"
