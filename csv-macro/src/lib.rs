@@ -19,7 +19,7 @@ struct EmbedDataInput {
 
 enum RowType {
     Range(syn::Type),
-    Enum(syn::Ident),
+    Enum(syn::Path),
 }
 
 impl Parse for EmbedDataInput {
@@ -87,7 +87,7 @@ pub fn embed_data(item: TokenStream) -> TokenStream {
                     .iter()
                     .map(|x| LitInt::new(x, Span::call_site()));
                 quote! {
-                    <#v>::#name => Some((#(#vals as #output_type),*))
+                    #v::#name => Some((#(#vals as #output_type),*))
                 }
             });
             quote! {

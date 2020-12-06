@@ -1,50 +1,13 @@
 use csv_macro::embed_data;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Job {
-    GLA,
-    PGL,
-    MRD,
-    LNC,
-    ARC,
-    CNJ,
-    THM,
-    PLD,
-    MNK,
-    WAR,
-    DRG,
-    BRD,
-    WHM,
-    BLM,
-    ACN,
-    SMN,
-    SCH,
-    ROG,
-    NIN,
-    MCH,
-    DRK,
-    AST,
-    SAM,
-    RDM,
-    BLU,
-    GNB,
-    DNC,
-}
-impl Job {
-    pub const fn tank(&self) -> bool {
-        use Job::*;
-        matches!(self, GLA | MRD | PLD | WAR | DRK | GNB)
-    }
-    pub const fn healer(&self) -> bool {
-        use Job::*;
-        matches!(self, CNJ | WHM | SCH | AST)
-    }
-    pub const fn attack_power(&self) -> JobField {
-        use Job::*;
-        match self {
-            ROG | NIN | ARC | BRD | MCH | DNC => JobField::DEX,
-            _ => JobField::STR,
-        }
+use crate::{Clan, Job};
+
+
+pub const fn attack_power(job: Job) -> JobField {
+    use Job::*;
+    match job {
+        ROG | NIN | ARC | BRD | MCH | DNC => JobField::DEX,
+        _ => JobField::STR,
     }
 }
 
@@ -69,26 +32,6 @@ pub enum LevelField {
     DIV,
     HP,
     THREAT,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Clan {
-    SeaWolves,
-    Hellsguard,
-    Highlander,
-    Midlander,
-    Wildwood,
-    Duskwight,
-    Sun,
-    Moon,
-    Plainsfolk,
-    Dunesfolk,
-    Xaela,
-    Raen,
-    Rava,
-    Veena,
-    Helion,
-    TheLost,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

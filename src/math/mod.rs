@@ -1,6 +1,8 @@
 pub mod data;
 use data::{LevelField, JobField};
 
+use crate::{Clan, Job};
+
 #[derive(Copy, Clone, Debug)]
 /// Player main & substats.
 /// These values are all the same as the ones you would find in-game.
@@ -25,9 +27,9 @@ pub struct PlayerStats {
 /// Information about the player that is not tied to gear
 pub struct PlayerInfo {
     /// The race and clan of the player
-    pub clan: data::Clan,
+    pub clan: Clan,
     /// The current job or class equipped
-    pub job: data::Job,
+    pub job: Job,
     /// The level of the player
     pub lvl: u8,
 }
@@ -114,7 +116,7 @@ impl XivMath {
     /// The relevant attack power stat.  
     /// This is dexterity for ROG/NIN and all phys ranged and strength otherwise.
     pub const fn attack_power(&self) -> u64 {
-        match self.info.job.attack_power() {
+        match data::attack_power(self.info.job) {
             JobField::DEX => self.stats.dex as u64,
             _ => self.stats.str as u64,
         }
@@ -179,7 +181,7 @@ impl XivMath {
     /// The output of this function is a multiplier scaled by `100`.
     pub const fn wd_mod(&self, stat: ActionStat) -> u64 {
         let stat_field = match stat {
-            ActionStat::AttackPower => self.info.job.attack_power(),
+            ActionStat::AttackPower => data::attack_power(self.info.job),
             ActionStat::AttackMagic if self.info.job.healer() => JobField::MND,
             ActionStat::AttackMagic => JobField::INT,
             ActionStat::HealingMagic => JobField::MND,
@@ -275,7 +277,7 @@ impl XivMath {
     /// The output of this function is a multiplier scaled by `100`
     pub const fn aa_mod(&self) -> u64 {
         (data::level(self.info.lvl, LevelField::MAIN)
-            * data::job(self.info.job, self.info.job.attack_power())
+            * data::job(self.info.job, data::attack_power(self.info.job))
             / 1000
             + self.weapon.phys_dmg as u64)
             * self.weapon.delay as u64
