@@ -1,5 +1,5 @@
 pub mod data;
-use data::{LevelField, JobField};
+use data::{JobField, LevelField};
 
 use crate::{Clan, Job};
 
@@ -48,15 +48,15 @@ pub struct WeaponInfo {
 }
 
 /// Main interface with all of the game's calculations.  
-/// 
+///
 /// # Usage
-/// 
+///
 /// Most of the high level interface with this struct comes through one of the following
 /// * [`prebuff_action_damage`](Self::prebuff_action_damage) for direct damage calculation
 /// * [`prebuff_dot_damage`](Self::prebuff_dot_damage) for damage over time (DoT) damage calculation
 /// * [`prebuff_aa_damage`](Self::prebuff_aa_damage) for auto attack damage calculation
 /// * [`action_cast_length`](Self::action_cast_length) for GCD and cast time calculation
-/// 
+///
 /// Many of the helper functions will return their values as a scaled integer. Because of the way
 /// FFXIV does its math, greater accuracy has been found when not interacting with floating point
 /// numbers on the backend.
@@ -109,7 +109,7 @@ impl XivMath {
         XivMath {
             stats,
             weapon,
-            info: player
+            info: player,
         }
     }
 
@@ -145,22 +145,24 @@ impl XivMath {
             SpeedStat::SpellSpeed => self.sps_mod(),
         }
     }
-    
-    /// The crit multiplied based on the handling. Output is scaled by `1000`
+
+    /// The crit multiplied based on the handling.  
+    /// Output is scaled by `1000000`  to allow for greater accuracy for [`CDHHandle::Avg`].
     const fn crt_mod(&self, handle: CDHHandle) -> u64 {
         match handle {
-            CDHHandle::Yes => self.crt_damage(),
-            CDHHandle::No => 1000,
-            CDHHandle::Avg => 1000 + (self.crt_damage() - 1000) * self.crt_chance() / 1000,
+            CDHHandle::Yes => self.crt_damage() * 1000,
+            CDHHandle::No => 1000 * 1000,
+            CDHHandle::Avg => 1000000 + (self.crt_damage() - 1000) * self.crt_chance(),
         }
     }
-    
-    /// The direct hit multiplier based on the handling. Output is scaled by `1000`
+
+    /// The direct hit multiplier based on the handling.  
+    /// Output is scaled by `100000` to allow for greater accuracy for [`CDHHandle::Avg`].
     const fn dh_mod(&self, handle: CDHHandle) -> u64 {
         match handle {
-            CDHHandle::Yes => 1250,
-            CDHHandle::No => 1000,
-            CDHHandle::Avg => 1000 + 250 * self.dh_chance() / 1000,
+            CDHHandle::Yes => 125000,
+            CDHHandle::No => 100000,
+            CDHHandle::Avg => 100000 + 25 * self.dh_chance(),
         }
     }
 
@@ -173,7 +175,7 @@ impl XivMath {
             ActionStat::HealingMagic => self.healing_magic(),
         }
     }
-    
+
     /// The Weapon Damage modifier based on the action stat used.
     /// * When using attack power, the weapon's Physical Damage will be used
     /// * When using attack magic or healing magic, the weapon's Magic Damage will be used.
@@ -193,7 +195,7 @@ impl XivMath {
                 self.weapon.magic_dmg as u64
             }
     }
-    
+
     /// The Attack Damage modifier based on the action stat used.  
     /// The output of this function is a multiplier scaled by `100`.
     pub const fn atk_damage(&self, stat: ActionStat) -> u64 {
@@ -288,6 +290,7 @@ impl XivMath {
     /// The damage depends on the type of `stat` used, the job `traits`, whether or not the
     /// action `crit` or `dhit`, and a random modifier `rand` between `9500` and `10500` inclusive.
     // TODO: write examples
+    #[rustfmt::skip]
     pub const fn prebuff_action_damage(
         &self,
         potency: u64,
@@ -299,19 +302,26 @@ impl XivMath {
         // Scaled by 10000
         rand: u64,
     ) -> u64 {
-        let d1 = potency * self.atk_damage(stat) * self.det_damage() / 100 / 1000;
-        let d2 = d1 * self.ten_damage() / 1000 * self.wd_mod(stat) / 100 * traits / 100;
-        let d3 = d2 * self.crt_mod(crit) / 1000 * self.dh_mod(dhit) / 1000;
-        d3 * rand / 10000
+        // The exact order is unknown, and should only lead to ~1-2 damage variation
+        // This order is used by Ari in their tank calc sheet
+        potency
+            * self.wd_mod(stat) / 100
+            * self.atk_damage(stat) / 100
+            * self.det_damage() / 1000
+            * self.ten_damage() / 1000
+            * traits / 100
+            * self.crt_mod(crit) / 1000000
+            * self.dh_mod(dhit) / 100000
+            * rand / 10000
     }
-    
-    
+
     /// Calculates the damage a damage over tick tick with a certain `potency` will do.
     /// The damage depends on the type of `stat` used, the job `traits`,
     /// the type of `speed_stat` that the action was modified by,
     /// whether or not the action `crit` or `dhit`,
     /// and a random modifier `rand` between `9500` and `10500` inclusive.
     #[allow(clippy::too_many_arguments)]
+    #[rustfmt::skip]
     pub const fn prebuff_dot_damage(
         &self,
         potency: u64,
@@ -323,17 +333,20 @@ impl XivMath {
         // Scaled by 10000
         rand: u64,
     ) -> u64 {
-        let d1 = potency * self.atk_damage(stat) * self.det_damage() / 100 / 1000;
-        let d2 = d1 * self.ten_damage() / 1000 * self.speed_mod(speed_stat) / 1000
-            * self.wd_mod(stat)
-            / 100
-            * traits
-            / 100
+        let d1 = potency
+            * self.wd_mod(stat) / 100
+            * self.atk_damage(stat) / 100 
+            * self.det_damage() / 1000
+            * self.ten_damage() / 1000
+            * self.speed_mod(speed_stat) / 1000
+            * traits / 100
             + 1;
-        let d3 = d2 * rand / 10000;
-        d3 * self.crt_mod(crit) / 1000 * self.dh_mod(dhit) / 1000
+        d1
+            * rand / 10000
+            * self.crt_mod(crit) / 1000000
+            * self.dh_mod(dhit) / 100000
     }
-    
+
     /// Calculates the damage of an auto attack with a certain `potency` will do.
     /// The damage depends on the type of `stat` used, the job `traits`, whether or not the
     /// action `crit` or `dhit`, and a random modifier `rand` between `9500` and `10500` inclusive.  
@@ -346,13 +359,16 @@ impl XivMath {
         dhit: CDHHandle,
         rand: u64,
     ) -> u64 {
-        let d1 =
-            potency * self.atk_damage(ActionStat::AttackPower) * self.det_damage() / 100 / 1000;
-        let d2 = d1 * self.ten_damage() / 1000 * self.sks_mod() / 1000 * self.aa_mod() / 100
-            * traits
-            / 100;
-        let d3 = d2 * self.crt_mod(crit) / 1000 * self.dh_mod(dhit) / 1000;
-        d3 * rand / 10000
+        potency
+            * self.aa_mod() / 100
+            * self.atk_damage(ActionStat::AttackPower) / 100
+            * self.det_damage() / 1000
+            * self.ten_damage() / 1000
+            * self.sks_mod() / 1000
+            * traits / 100
+            * self.crt_mod(crit) / 1000000
+            * self.dh_mod(dhit) / 100000
+            * rand / 10000
     }
 
     /// Calculates the cast or recast time of an action that uses `speed_stat`.  
