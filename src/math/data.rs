@@ -1,4 +1,4 @@
-use csv_macro::embed_data;
+use xivc_macros::embed_data;
 
 use crate::{Clan, Job};
 

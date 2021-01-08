@@ -7,4 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-csv-macro = { path = "./csv-macro" }
+xivc-macros = { path = "./xivc-macros" }
+radix-heap = "0.3.8"
+
+[lib]
+
+[[bin]]
+name = "gnbsim"
+path = "./src/gnbsim.rs"

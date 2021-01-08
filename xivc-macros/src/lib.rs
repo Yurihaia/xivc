@@ -1,7 +1,10 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
-use syn::{LitInt, LitStr, Token, parse::{Parse, ParseStream}};
 use syn::export::Span;
+use syn::{
+    parse::{Parse, ParseStream},
+    LitInt, LitStr, Token,
+};
 
 use std::{fs::File, io::Read, path::PathBuf};
 
@@ -14,7 +17,7 @@ struct EmbedDataInput {
     _c2: Token![,],
     row_type: RowType,
     _c3: Token![,],
-    output_type: syn::Type
+    output_type: syn::Type,
 }
 
 enum RowType {
@@ -81,11 +84,9 @@ pub fn embed_data(item: TokenStream) -> TokenStream {
     //
     match row_type {
         RowType::Enum(v) => {
-            let rows = csv.rows.iter().map(|(n,vals)| {
+            let rows = csv.rows.iter().map(|(n, vals)| {
                 let name = quote::format_ident!("{}", n);
-                let vals = vals
-                    .iter()
-                    .map(|x| LitInt::new(x, Span::call_site()));
+                let vals = vals.iter().map(|x| LitInt::new(x, Span::call_site()));
                 quote! {
                     #v::#name => Some((#(#vals as #output_type),*))
                 }
@@ -100,11 +101,9 @@ pub fn embed_data(item: TokenStream) -> TokenStream {
         }
         // Unused but I still want to keep it in I guess
         RowType::Range(_ty) => {
-            let rows = csv.rows.iter().map(|(n,vals)| {
+            let rows = csv.rows.iter().map(|(n, vals)| {
                 let name = LitInt::new(n, Span::call_site());
-                let vals = vals
-                    .iter()
-                    .map(|x| LitInt::new(x, Span::call_site()));
+                let vals = vals.iter().map(|x| LitInt::new(x, Span::call_site()));
                 quote! {
                     #name => Some((#(#vals as #output_type),*))
                 }
@@ -122,3 +121,39 @@ pub fn embed_data(item: TokenStream) -> TokenStream {
     }
     .into()
 }
+
+
+// #[proc_macro_attribute]
+// pub fn action(_: TokenStream, item: TokenStream) -> TokenStream {
+//     item
+// }
+
+// is this too verbose?????
+// of course it is but of course the alternative
+// is cursed enum casting or just boilerplate
+
+/*
+#[xivc::cooldown(GnbActionCooldown)]
+pub enum GnbAction {
+    #[xivc(gcd)]
+    Keen,
+    #[xivc(gcd)]
+    #[xivc::combo(KeenCombo, Keen)]
+    Brutal,
+    #[xivc(gcd)]
+    #[xivc::combo(KeenCombo, Brutal)]
+    Solid,
+    #[xivc(gcd)]
+    #[xivc::cooldown(3000, speed_scale = "sks")]
+    Gnashing,
+    #[xivc(gcd)]
+    #[xivc::cooldown(6000, speed_scale = "sks")]
+    Sonic,
+    #[xivc::cooldown(3000, charge = 2)]
+    Divide,
+    #[xivc::cooldown(3000)]
+    Blasting,
+    #[xivc::cooldown(6000)]
+    NoMercy,
+}
+*/

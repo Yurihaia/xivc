@@ -150,3 +150,13 @@ impl Display for Job {
         write!(f, "{}", self.job_name())
     }
 }
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum DamageElement {
+    None, Fire, Earth, Ice, Water, Wind, Lightning
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum DamageType {
+    Slashing, Piercing, Blunt, Magic
+}

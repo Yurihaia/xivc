@@ -23,6 +23,30 @@ pub struct PlayerStats {
     pub pie: u16,
 }
 
+impl PlayerStats {
+    pub const fn default(lvl: u8) -> Self {
+        let main = data::level(lvl, LevelField::MAIN) as u16;
+        let sub = data::level(lvl, LevelField::SUB) as u16;
+        Self {
+            // mainstats
+            str: main,
+            vit: main,
+            dex: main,
+            int: main,
+            mnd: main,
+            // substats that use mainstats
+            det: main,
+            pie: main,
+            // substats
+            crt: sub,
+            dh: sub,
+            sks: sub,
+            sps: sub,
+            ten: sub,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 /// Information about the player that is not tied to gear
 pub struct PlayerInfo {
@@ -96,7 +120,9 @@ pub enum SpeedStat {
 pub enum CDHHandle {
     /// Signifies that the critical/direct hit should be averaged out in damage.
     /// Calculated as `1 + damage% * chance`
-    Avg,
+    Avg {
+        chance: u16,
+    },
     /// Signifies that the critical/direct hit occured.
     Yes,
     /// Signifies that the critical/direct hit did not occur.
@@ -152,7 +178,7 @@ impl XivMath {
         match handle {
             CDHHandle::Yes => self.crt_damage() * 1000,
             CDHHandle::No => 1000 * 1000,
-            CDHHandle::Avg => 1000000 + (self.crt_damage() - 1000) * self.crt_chance(),
+            CDHHandle::Avg { chance }=> 1000000 + (self.crt_damage() - 1000) * chance as u64,
         }
     }
 
@@ -162,7 +188,7 @@ impl XivMath {
         match handle {
             CDHHandle::Yes => 125000,
             CDHHandle::No => 100000,
-            CDHHandle::Avg => 100000 + 25 * self.dh_chance(),
+            CDHHandle::Avg { chance } => 100000 + 25 * chance as u64,
         }
     }
 
@@ -302,8 +328,8 @@ impl XivMath {
         // Scaled by 10000
         rand: u64,
     ) -> u64 {
-        // The exact order is unknown, and should only lead to ~1-2 damage variation
-        // This order is used by Ari in their tank calc sheet
+        // The exact order is unknown, and should only lead to ~1-2 damage variation.
+        // This order is used by Ari in their tank calc sheet.
         potency
             * self.wd_mod(stat) / 100
             * self.atk_damage(stat) / 100
@@ -318,22 +344,18 @@ impl XivMath {
     /// Calculates the damage a damage over tick tick with a certain `potency` will do.
     /// The damage depends on the type of `stat` used, the job `traits`,
     /// the type of `speed_stat` that the action was modified by,
-    /// whether or not the action `crit` or `dhit`,
-    /// and a random modifier `rand` between `9500` and `10500` inclusive.
-    #[allow(clippy::too_many_arguments)]
+    /// and the chance the dot has to `crit` or `dhit`,
     #[rustfmt::skip]
-    pub const fn prebuff_dot_damage(
+    pub const fn dot_damage_snapshot(
         &self,
         potency: u64,
         stat: ActionStat,
         traits: u64,
         speed_stat: SpeedStat,
-        crit: CDHHandle,
-        dhit: CDHHandle,
-        // Scaled by 10000
-        rand: u64,
-    ) -> u64 {
-        let d1 = potency
+        crit_chance: u16,
+        dhit_chance: u16,
+    ) -> EotSnapshot {
+        let base = potency
             * self.wd_mod(stat) / 100
             * self.atk_damage(stat) / 100 
             * self.det_damage() / 1000
@@ -341,10 +363,12 @@ impl XivMath {
             * self.speed_mod(speed_stat) / 1000
             * traits / 100
             + 1;
-        d1
-            * rand / 10000
-            * self.crt_mod(crit) / 1000000
-            * self.dh_mod(dhit) / 100000
+        EotSnapshot {
+            base,
+            crit_chance,
+            dhit_chance,
+            crit_damage: self.crt_damage() as u16
+        }
     }
 
     /// Calculates the damage of an auto attack with a certain `potency` will do.
@@ -386,4 +410,55 @@ impl XivMath {
         let g2 = (100 - buffs) * (100 - haste) / 100;
         g1 * g2 / 1000
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct EotSnapshot {
+    pub base: u64,
+    pub crit_damage: u16,
+    pub crit_chance: u16,
+    pub dhit_chance: u16,
+}
+
+impl EotSnapshot {
+    pub const fn prebuff_dot_damage(
+        &self,
+        crit: CDHHandle,
+        dhit: CDHHandle,
+        rand: u64
+    ) -> u64 {
+        self.base
+            * rand / 10000
+            * self.crt_mod(crit) / 1000000
+            * self.dh_mod(dhit) / 100000
+    }
+    
+    /// The crit multiplied based on the handling.  
+    /// Output is scaled by `1000000`  to allow for greater accuracy for [`CDHHandle::Avg`].
+    const fn crt_mod(&self, handle: CDHHandle) -> u64 {
+        match handle {
+            CDHHandle::Yes => self.crit_damage as u64 * 1000,
+            CDHHandle::No => 1000 * 1000,
+            CDHHandle::Avg { chance }=> 1000000 + (self.crit_damage as u64 - 1000) * chance as u64,
+        }
+    }
+
+    /// The direct hit multiplier based on the handling.  
+    /// Output is scaled by `100000` to allow for greater accuracy for [`CDHHandle::Avg`].
+    const fn dh_mod(&self, handle: CDHHandle) -> u64 {
+        match handle {
+            CDHHandle::Yes => 125000,
+            CDHHandle::No => 100000,
+            CDHHandle::Avg { chance } => 100000 + 25 * chance as u64,
+        }
+    }
+}
+
+pub const fn speed_calc(
+    // 4 digit speed modifier
+    speed: u64,
+    // centiseconds
+    base: u64,
+) -> u64 {
+    ((2000 - speed) * base) / 1000
 }

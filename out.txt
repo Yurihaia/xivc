@@ -1,0 +1,441 @@
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Lightning })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 0 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 1000000, effects: [], mirrors: [] }
+Damage queued: 6567
+Total Boss Damage: 0
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 6567, ty: Slashing, el: None } })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 60 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 1000000, effects: [], mirrors: [] }
+Total Boss Damage: 6567
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Keen })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 242 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 993433, effects: [], mirrors: [] }
+Damage queued: 8758
+Total Boss Damage: 6567
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Brutal(1442), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 184, ani_lock: 2, custom: GnbActionCooldown, advanced: 300 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 993433, effects: [], mirrors: [] }
+Total Boss Damage: 6567
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Bloodfest })
+GnbJobState { kc: Brutal(1440), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 302 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 993433, effects: [], mirrors: [] }
+Total Boss Damage: 6567
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 8758, ty: Slashing, el: None } })
+GnbJobState { kc: Brutal(1440), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 182, ani_lock: 60, custom: GnbActionCooldown, advanced: 302 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 993433, effects: [], mirrors: [] }
+Total Boss Damage: 15325
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 1, gen: 0 })], action: NoMercy })
+GnbJobState { kc: Brutal(1380), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 122, ani_lock: 0, custom: GnbActionCooldown, advanced: 362 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 984675, effects: [], mirrors: [] }
+Total Boss Damage: 15325
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 1, gen: 0 }), effect: EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 2000, stack: 1 } })
+GnbJobState { kc: Brutal(1320), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 62, ani_lock: 0, custom: GnbActionCooldown, advanced: 422 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 984675, effects: [], mirrors: [] }
+Total Boss Damage: 15325
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Brutal })
+GnbJobState { kc: Brutal(1258), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 484 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1938, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 984675, effects: [], mirrors: [] }
+Damage queued: 15765
+Total Boss Damage: 15325
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 15765, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(1440), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 544 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1878, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 984675, effects: [], mirrors: [] }
+Total Boss Damage: 31090
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(1384), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 126, ani_lock: 0, custom: GnbActionCooldown, advanced: 600 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1822, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 968910, effects: [], mirrors: [] }
+Total Boss Damage: 31090
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Gnashing })
+GnbJobState { kc: Solid(1258), sc: None, gc: None, cont: None, carts: 2, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 726 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1696, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 968910, effects: [], mirrors: [] }
+Damage queued: 23650
+Total Boss Damage: 31090
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 1, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 2000, stack: 1 } })
+GnbJobState { kc: Solid(1234), sc: None, gc: Savage(1476), cont: Jugular(976), carts: 1, cooldown: CooldownManager { global: 218, ani_lock: 46, custom: GnbActionCooldown, advanced: 750 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1672, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 968910, effects: [], mirrors: [] }
+Total Boss Damage: 31090
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 1, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 2000, stack: 1 } })
+GnbJobState { kc: Solid(1234), sc: None, gc: Savage(1476), cont: Jugular(976), carts: 1, cooldown: CooldownManager { global: 218, ani_lock: 46, custom: GnbActionCooldown, advanced: 750 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1672, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 2000, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 968910, effects: [], mirrors: [] }
+Total Boss Damage: 31090
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 23650, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(1198), sc: None, gc: Savage(1440), cont: Jugular(940), carts: 1, cooldown: CooldownManager { global: 182, ani_lock: 10, custom: GnbActionCooldown, advanced: 786 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1636, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1964, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1964, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 968910, effects: [], mirrors: [] }
+Total Boss Damage: 54740
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Jugular })
+GnbJobState { kc: Solid(1188), sc: None, gc: Savage(1430), cont: Jugular(930), carts: 1, cooldown: CooldownManager { global: 172, ani_lock: 0, custom: GnbActionCooldown, advanced: 796 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1626, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1954, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1954, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 945260, effects: [], mirrors: [] }
+Damage queued: 14893
+Total Boss Damage: 54740
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 14893, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(1128), sc: None, gc: Savage(1370), cont: None, carts: 1, cooldown: CooldownManager { global: 112, ani_lock: 0, custom: GnbActionCooldown, advanced: 856 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1566, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1894, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1894, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 945260, effects: [], mirrors: [] }
+Total Boss Damage: 69633
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(1084), sc: None, gc: Savage(1326), cont: None, carts: 1, cooldown: CooldownManager { global: 68, ani_lock: 0, custom: GnbActionCooldown, advanced: 900 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1522, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1850, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1850, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [], mirrors: [] }
+Total Boss Damage: 69633
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Burst })
+GnbJobState { kc: Solid(1016), sc: None, gc: Savage(1258), cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 968 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1454, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1782, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1782, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [], mirrors: [] }
+Damage queued: 28697
+Total Boss Damage: 69633
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 1, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1500, stack: 1 } })
+GnbJobState { kc: Solid(984), sc: None, gc: Savage(1226), cont: None, carts: 0, cooldown: CooldownManager { global: 210, ani_lock: 28, custom: GnbActionCooldown, advanced: 1000 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1422, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1750, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [], mirrors: [] }
+Total Boss Damage: 69633
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 1, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1500, stack: 1 } })
+GnbJobState { kc: Solid(984), sc: None, gc: Savage(1226), cont: None, carts: 0, cooldown: CooldownManager { global: 210, ani_lock: 28, custom: GnbActionCooldown, advanced: 1000 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1422, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1500, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [], mirrors: [] }
+Total Boss Damage: 69633
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1500, stack: 1 } })
+GnbJobState { kc: Solid(984), sc: None, gc: Savage(1226), cont: None, carts: 0, cooldown: CooldownManager { global: 210, ani_lock: 28, custom: GnbActionCooldown, advanced: 1000 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1422, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1500, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1500, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [], mirrors: [] }
+Total Boss Damage: 69633
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1500, stack: 1 } })
+GnbJobState { kc: Solid(984), sc: None, gc: Savage(1226), cont: None, carts: 0, cooldown: CooldownManager { global: 210, ani_lock: 28, custom: GnbActionCooldown, advanced: 1000 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1422, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1750, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1500, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1500, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1500, stack: 1 }], mirrors: [] }
+Total Boss Damage: 69633
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Divide })
+GnbJobState { kc: Solid(956), sc: None, gc: Savage(1198), cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 1028 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1394, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1722, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1722, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1472, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1472, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1472, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1472, stack: 1 }], mirrors: [] }
+Damage queued: 12838
+Total Boss Damage: 69633
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 28697, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(956), sc: None, gc: Savage(1198), cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 60, custom: GnbActionCooldown, advanced: 1028 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1394, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1722, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1722, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1472, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1472, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 930367, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1472, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1472, stack: 1 }], mirrors: [] }
+Total Boss Damage: 98330
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 12838, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(896), sc: None, gc: Savage(1138), cont: None, carts: 0, cooldown: CooldownManager { global: 122, ani_lock: 0, custom: GnbActionCooldown, advanced: 1088 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1334, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1662, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1662, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1412, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1412, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 901670, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1412, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1412, stack: 1 }], mirrors: [] }
+Total Boss Damage: 111168
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(784), sc: None, gc: Savage(1026), cont: None, carts: 0, cooldown: CooldownManager { global: 10, ani_lock: 0, custom: GnbActionCooldown, advanced: 1200 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1222, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1550, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1550, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1300, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1300, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 888832, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1300, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1300, stack: 1 }], mirrors: [] }
+Total Boss Damage: 111168
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Sonic })
+GnbJobState { kc: Solid(774), sc: None, gc: Savage(1016), cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 1210 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1212, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1540, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1540, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1290, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1290, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 888832, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1290, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1290, stack: 1 }], mirrors: [] }
+Damage queued: 19076
+Total Boss Damage: 111168
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Blasting })
+GnbJobState { kc: Solid(714), sc: None, gc: Savage(956), cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 1270 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1152, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1480, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1480, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1230, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 888832, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1230, stack: 1 }], mirrors: [] }
+Damage queued: 50888
+Total Boss Damage: 111168
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 3000, stack: 1 } })
+GnbJobState { kc: Solid(714), sc: None, gc: Savage(956), cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 60, custom: GnbActionCooldown, advanced: 1270 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1152, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1480, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1480, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1230, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 888832, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1230, stack: 1 }], mirrors: [] }
+Total Boss Damage: 111168
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 19076, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(714), sc: None, gc: Savage(956), cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 60, custom: GnbActionCooldown, advanced: 1270 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1152, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1480, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1480, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1230, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 888832, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1230, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 3000, stack: 1 }], mirrors: [] }
+Total Boss Damage: 130244
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Shock })
+GnbJobState { kc: Solid(654), sc: None, gc: Savage(896), cont: None, carts: 0, cooldown: CooldownManager { global: 122, ani_lock: 0, custom: GnbActionCooldown, advanced: 1330 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1092, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1420, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1420, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1170, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1170, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 869756, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1170, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1170, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2940, stack: 1 }], mirrors: [] }
+Damage queued: 12714
+Total Boss Damage: 130244
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 50888, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(654), sc: None, gc: Savage(896), cont: None, carts: 0, cooldown: CooldownManager { global: 122, ani_lock: 60, custom: GnbActionCooldown, advanced: 1330 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1092, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1420, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1420, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1170, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1170, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 869756, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1170, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1170, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2940, stack: 1 }], mirrors: [] }
+Total Boss Damage: 181132
+------------------------------------------
+EffectApply(EffectApplyEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), effect: EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1500, stack: 1 } })
+GnbJobState { kc: Solid(594), sc: None, gc: Savage(836), cont: None, carts: 0, cooldown: CooldownManager { global: 62, ani_lock: 0, custom: GnbActionCooldown, advanced: 1390 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1032, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1360, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1360, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1110, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1110, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 818868, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1110, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1110, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2880, stack: 1 }], mirrors: [] }
+Total Boss Damage: 181132
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 12714, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(594), sc: None, gc: Savage(836), cont: None, carts: 0, cooldown: CooldownManager { global: 62, ani_lock: 0, custom: GnbActionCooldown, advanced: 1390 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 1032, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1360, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1360, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1110, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1110, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 818868, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1110, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1110, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2880, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1500, stack: 1 }], mirrors: [] }
+Total Boss Damage: 193846
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Savage })
+GnbJobState { kc: Solid(532), sc: None, gc: Savage(774), cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 1452 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 970, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1298, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1298, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1048, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1048, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 806154, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1048, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1048, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2818, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1438, stack: 1 }], mirrors: [] }
+Damage queued: 34979
+Total Boss Damage: 193846
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(484), sc: None, gc: Wicked(1452), cont: Abdomen(952), carts: 0, cooldown: CooldownManager { global: 194, ani_lock: 2, custom: GnbActionCooldown, advanced: 1500 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 922, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1250, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1250, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 1000, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 1000, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 806154, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 1000, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 1000, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2770, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1390, stack: 1 }], mirrors: [] }
+Total Boss Damage: 205614
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Divide })
+GnbJobState { kc: Solid(482), sc: None, gc: Wicked(1450), cont: Abdomen(950), carts: 0, cooldown: CooldownManager { global: 192, ani_lock: 0, custom: GnbActionCooldown, advanced: 1502 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 920, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1248, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1248, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 998, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 998, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 794386, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 998, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 998, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2768, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1388, stack: 1 }], mirrors: [] }
+Damage queued: 12714
+Total Boss Damage: 205614
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 34979, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(472), sc: None, gc: Wicked(1440), cont: Abdomen(940), carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 50, custom: GnbActionCooldown, advanced: 1512 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 910, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1238, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1238, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 988, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 988, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 794386, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 988, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 988, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2758, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1378, stack: 1 }], mirrors: [] }
+Total Boss Damage: 240593
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Abdomen })
+GnbJobState { kc: Solid(422), sc: None, gc: Wicked(1390), cont: Abdomen(890), carts: 0, cooldown: CooldownManager { global: 132, ani_lock: 0, custom: GnbActionCooldown, advanced: 1562 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 860, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1188, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1188, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 938, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 938, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 759407, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 938, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 938, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2708, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1328, stack: 1 }], mirrors: [] }
+Damage queued: 17616
+Total Boss Damage: 240593
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 12714, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(422), sc: None, gc: Wicked(1390), cont: None, carts: 0, cooldown: CooldownManager { global: 132, ani_lock: 60, custom: GnbActionCooldown, advanced: 1562 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 860, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1188, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1188, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 938, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 938, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 759407, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 938, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 938, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2708, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1328, stack: 1 }], mirrors: [] }
+Total Boss Damage: 253307
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 17616, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(362), sc: None, gc: Wicked(1330), cont: None, carts: 0, cooldown: CooldownManager { global: 72, ani_lock: 0, custom: GnbActionCooldown, advanced: 1622 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 800, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1128, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1128, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 878, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 878, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 746693, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 878, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 878, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2648, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1268, stack: 1 }], mirrors: [] }
+Total Boss Damage: 270923
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Wicked })
+GnbJobState { kc: Solid(290), sc: None, gc: Wicked(1258), cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 1694 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 728, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 1056, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 1056, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 806, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 806, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 729077, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 806, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 806, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2576, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1196, stack: 1 }], mirrors: [] }
+Damage queued: 40940
+Total Boss Damage: 270923
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 40940, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(230), sc: None, gc: None, cont: Eye(940), carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 17, custom: GnbActionCooldown, advanced: 1754 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 668, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 996, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 996, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 746, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 746, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 729077, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 746, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 746, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2516, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1136, stack: 1 }], mirrors: [] }
+Total Boss Damage: 311863
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Eye })
+GnbJobState { kc: Solid(213), sc: None, gc: None, cont: Eye(923), carts: 0, cooldown: CooldownManager { global: 165, ani_lock: 0, custom: GnbActionCooldown, advanced: 1771 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 651, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 979, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 979, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 729, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 729, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 688137, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 729, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 729, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2499, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1119, stack: 1 }], mirrors: [] }
+Damage queued: 18890
+Total Boss Damage: 311863
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(184), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 136, ani_lock: 31, custom: GnbActionCooldown, advanced: 1800 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 622, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 950, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 950, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 700, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 700, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 688137, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 700, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 700, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2470, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1090, stack: 1 }], mirrors: [] }
+Total Boss Damage: 323631
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 18890, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(153), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 105, ani_lock: 0, custom: GnbActionCooldown, advanced: 1831 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 591, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 919, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 919, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 669, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 669, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 676369, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 669, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 669, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2439, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 1059, stack: 1 }], mirrors: [] }
+Total Boss Damage: 342521
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Solid })
+GnbJobState { kc: Solid(48), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 1936 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 486, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 814, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 814, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 564, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 564, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 657479, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 564, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 564, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2334, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 954, stack: 1 }], mirrors: [] }
+Damage queued: 25191
+Total Boss Damage: 342521
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 25191, ty: Slashing, el: None } })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 1996 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 426, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 754, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 754, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 504, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 504, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 657479, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 504, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 504, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2274, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 894, stack: 1 }], mirrors: [] }
+Total Boss Damage: 367712
+------------------------------------------
+DotTrigger
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 78, ani_lock: 0, custom: GnbActionCooldown, advanced: 2100 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 322, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 650, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 650, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 400, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 400, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 632288, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 400, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 400, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2170, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 790, stack: 1 }], mirrors: [] }
+Total Boss Damage: 379480
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Burst })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 2178 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 244, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 572, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 572, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 322, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 322, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 620520, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 322, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 322, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2092, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 712, stack: 1 }], mirrors: [] }
+Damage queued: 31183
+Total Boss Damage: 379480
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 31183, ty: Slashing, el: None } })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 2238 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 184, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 512, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 512, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 262, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 262, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 620520, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 262, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 262, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 2032, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 652, stack: 1 }], mirrors: [] }
+Total Boss Damage: 410663
+------------------------------------------
+DotTrigger
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 20, ani_lock: 0, custom: GnbActionCooldown, advanced: 2400 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 22, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 350, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 350, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 100, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 100, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 589337, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 100, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 100, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1870, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 490, stack: 1 }], mirrors: [] }
+Total Boss Damage: 422431
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Keen })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 2420 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("No Mercy" @ 0x7ff691f16080), time: 2, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 330, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 330, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 80, stack: 1 }, EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 80, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 577569, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 80, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 80, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1850, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 470, stack: 1 }], mirrors: [] }
+Damage queued: 12344
+Total Boss Damage: 422431
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 12344, ty: Slashing, el: None } })
+GnbJobState { kc: Brutal(1440), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 2480 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("Devotion" @ 0x7ff691f15460), time: 20, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 270, stack: 1 }, EffectInstance { effect: StatusEffect("Technical Finish" @ 0x7ff691f15310), time: 270, stack: 1 }, EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 20, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 577569, effects: [EffectInstance { effect: StatusEffect("Chain Strategem" @ 0x7ff691f15410), time: 20, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 20, stack: 1 }, EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1790, stack: 1 }, EffectInstance { effect: StatusEffect("Bow Shock" @ 0x7ff691f16028), time: 410, stack: 1 }], mirrors: [] }
+Total Boss Damage: 434775
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Brutal })
+GnbJobState { kc: Brutal(1258), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 2662 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("Divination" @ 0x7ff691f154b8), time: 0, stack: 1 }, EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 88, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 565225, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1608, stack: 1 }, EffectInstance { effect: StatusEffect("Trick Attack" @ 0x7ff691f153b8), time: 0, stack: 1 }], mirrors: [] }
+Damage queued: 13926
+Total Boss Damage: 434775
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(1462), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 204, ani_lock: 22, custom: GnbActionCooldown, advanced: 2700 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 50, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 565225, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1570, stack: 1 }], mirrors: [] }
+Total Boss Damage: 440659
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 13926, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(1440), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 2722 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [EffectInstance { effect: StatusEffect("Embolden" @ 0x7ff691f15360), time: 28, stack: 1 }], mirrors: [] }
+Actor { name: "Dummy Boss", health: 559341, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1548, stack: 1 }], mirrors: [] }
+Total Boss Damage: 454585
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Solid })
+GnbJobState { kc: Solid(1258), sc: None, gc: None, cont: None, carts: 0, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 2904 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 545415, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1366, stack: 1 }], mirrors: [] }
+Damage queued: 17519
+Total Boss Damage: 454585
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 17519, ty: Slashing, el: None } })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 2964 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 545415, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1306, stack: 1 }], mirrors: [] }
+Total Boss Damage: 472104
+------------------------------------------
+DotTrigger
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 146, ani_lock: 0, custom: GnbActionCooldown, advanced: 3000 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 527896, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1270, stack: 1 }], mirrors: [] }
+Total Boss Damage: 477988
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Keen })
+GnbJobState { kc: None, sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 3146 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 522012, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1124, stack: 1 }], mirrors: [] }
+Damage queued: 8758
+Total Boss Damage: 477988
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 8758, ty: Slashing, el: None } })
+GnbJobState { kc: Brutal(1440), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 3206 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 522012, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 1064, stack: 1 }], mirrors: [] }
+Total Boss Damage: 486746
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Brutal(1346), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 88, ani_lock: 0, custom: GnbActionCooldown, advanced: 3300 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 513254, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 970, stack: 1 }], mirrors: [] }
+Total Boss Damage: 492630
+------------------------------------------
+Cast(CastEvent { source: ActorId(RawId { i: 1, gen: 0 }), targets: [ActorId(RawId { i: 0, gen: 0 })], action: Brutal })
+GnbJobState { kc: Brutal(1258), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 3388 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 507370, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 882, stack: 1 }], mirrors: [] }
+Damage queued: 13138
+------------------------------------------
+Damage(DamageEvent { source: ActorId(RawId { i: 1, gen: 0 }), target: ActorId(RawId { i: 0, gen: 0 }), damage: DamageInstance { dmg: 13138, ty: Slashing, el: None } })
+GnbJobState { kc: Solid(1440), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 182, ani_lock: 0, custom: GnbActionCooldown, advanced: 3448 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 507370, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 822, stack: 1 }], mirrors: [] }
+Total Boss Damage: 505768
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(1288), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 30, ani_lock: 0, custom: GnbActionCooldown, advanced: 3600 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 494232, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 670, stack: 1 }], mirrors: [] }
+Total Boss Damage: 511652
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(988), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 3900 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 488348, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 370, stack: 1 }], mirrors: [] }
+Total Boss Damage: 517536
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(688), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 4200 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 482464, effects: [EffectInstance { effect: StatusEffect("Sonic Break" @ 0x7ff691f15fc8), time: 70, stack: 1 }], mirrors: [] }
+Total Boss Damage: 523420
+------------------------------------------
+DotTrigger
+GnbJobState { kc: Solid(388), sc: None, gc: None, cont: None, carts: 1, cooldown: CooldownManager { global: 0, ani_lock: 0, custom: GnbActionCooldown, advanced: 4500 } }
+Actor { name: ":qwestgnb:", health: 200000, effects: [], mirrors: [] }
+Actor { name: "Dummy Boss", health: 476580, effects: [], mirrors: [] }
+Total Boss Damage: 523420
