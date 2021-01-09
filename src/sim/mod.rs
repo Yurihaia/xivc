@@ -3,7 +3,7 @@ pub use event::*;
 use radix_heap::RadixHeapMap;
 pub mod cooldown;
 
-use std::{cmp::Reverse, fmt, hash::{self, Hash}, ops::Deref};
+use std::{cmp::Reverse, collections::HashMap, fmt, hash::{self, Hash}, ops::Deref};
 
 use crate::{
     arena::Arena,
@@ -64,26 +64,11 @@ impl<E> Runtime<E> {
         let (gt, e) = self.event_queue.pop()?;
         let dt = gt.0 - self.global_time;
         self.global_time = gt.0;
-        #[allow(clippy::needless_collect)]
         for actor in self.actors.iter_mut() {
-            // TODO clean up status effects so that this code is a much better
-            // cause iterating through every debuff and then collecting is pretty shit tbh
-            let remove = actor
-                .effects
-                .iter_mut()
-                .enumerate()
-                .filter_map(|(ind, effect)| {
-                    effect.time = effect.time.saturating_sub(dt);
-                    if effect.time > 0 {
-                        None
-                    } else {
-                        Some(ind)
-                    }
-                })
-                .collect::<Vec<_>>();
-            for (red, x) in remove.into_iter().enumerate() {
-                actor.effects.swap_remove(x - red);
-            }
+            actor.effects.retain(|_, v| {
+                v.time = v.time.saturating_sub(dt);
+                v.time > 0
+            });
         }
         Some((dt, e))
     }
@@ -108,7 +93,7 @@ impl<E> Default for Runtime<E> {
 pub struct Actor {
     pub name: &'static str,
     pub health: u64,
-    pub effects: Vec<EffectInstance>,
+    pub effects: HashMap<(ActorId, StatusEffect), EffectInstance>,
     pub mirrors: Vec<ActorId>,
 }
 

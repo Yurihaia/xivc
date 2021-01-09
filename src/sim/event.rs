@@ -144,5 +144,5 @@ pub struct EffectRemoveEvent {
     /// The target actor that the effect was removed from
     pub target: ActorId,
     /// The effect to remove from the target
-    pub effect: StatusEffect,
+    pub effect: (ActorId, StatusEffect),
 }
