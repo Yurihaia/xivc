@@ -421,7 +421,7 @@ pub struct EotSnapshot {
 }
 
 impl EotSnapshot {
-    pub const fn prebuff_dot_damage(
+    pub fn prebuff_dot_damage(
         &self,
         crit: CDHHandle,
         dhit: CDHHandle,
@@ -439,7 +439,7 @@ impl EotSnapshot {
         match handle {
             CDHHandle::Yes => self.crit_damage as u64 * 1000,
             CDHHandle::No => 1000 * 1000,
-            CDHHandle::Avg { chance }=> 1000000 + (self.crit_damage as u64 - 1000) * chance as u64,
+            CDHHandle::Avg { chance } => 1000000 + (self.crit_damage as u64 - 1000) * chance as u64,
         }
     }
 
