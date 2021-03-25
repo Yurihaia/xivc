@@ -62,6 +62,7 @@ impl Clan {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::upper_case_acronyms)] // this is literally the way FF14 does it so I'm not gonna change it :)))
 pub enum Job {
     GLA,
     PGL,

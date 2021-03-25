@@ -117,7 +117,7 @@ pub enum SpeedStat {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 /// Handling of critical and direct hits.
-pub enum CDHHandle {
+pub enum HitTypeHandle {
     /// Signifies that the critical/direct hit should be averaged out in damage.
     /// Calculated as `1 + damage% * chance`
     Avg {
@@ -174,21 +174,21 @@ impl XivMath {
 
     /// The crit multiplied based on the handling.  
     /// Output is scaled by `1000000`  to allow for greater accuracy for [`CDHHandle::Avg`].
-    const fn crt_mod(&self, handle: CDHHandle) -> u64 {
+    const fn crt_mod(&self, handle: HitTypeHandle) -> u64 {
         match handle {
-            CDHHandle::Yes => self.crt_damage() * 1000,
-            CDHHandle::No => 1000 * 1000,
-            CDHHandle::Avg { chance }=> 1000000 + (self.crt_damage() - 1000) * chance as u64,
+            HitTypeHandle::Yes => self.crt_damage() * 1000,
+            HitTypeHandle::No => 1000 * 1000,
+            HitTypeHandle::Avg { chance }=> 1000000 + (self.crt_damage() - 1000) * chance as u64,
         }
     }
 
     /// The direct hit multiplier based on the handling.  
     /// Output is scaled by `100000` to allow for greater accuracy for [`CDHHandle::Avg`].
-    const fn dh_mod(&self, handle: CDHHandle) -> u64 {
+    const fn dh_mod(&self, handle: HitTypeHandle) -> u64 {
         match handle {
-            CDHHandle::Yes => 125000,
-            CDHHandle::No => 100000,
-            CDHHandle::Avg { chance } => 100000 + 25 * chance as u64,
+            HitTypeHandle::Yes => 125000,
+            HitTypeHandle::No => 100000,
+            HitTypeHandle::Avg { chance } => 100000 + 25 * chance as u64,
         }
     }
 
@@ -322,8 +322,8 @@ impl XivMath {
         potency: u64,
         stat: ActionStat,
         traits: u64,
-        crit: CDHHandle,
-        dhit: CDHHandle,
+        crit: HitTypeHandle,
+        dhit: HitTypeHandle,
         // between 9500 and 10500?????
         // Scaled by 10000
         rand: u64,
@@ -379,8 +379,8 @@ impl XivMath {
         &self,
         potency: u64,
         traits: u64,
-        crit: CDHHandle,
-        dhit: CDHHandle,
+        crit: HitTypeHandle,
+        dhit: HitTypeHandle,
         rand: u64,
     ) -> u64 {
         potency
@@ -423,8 +423,8 @@ pub struct EotSnapshot {
 impl EotSnapshot {
     pub fn prebuff_dot_damage(
         &self,
-        crit: CDHHandle,
-        dhit: CDHHandle,
+        crit: HitTypeHandle,
+        dhit: HitTypeHandle,
         rand: u64
     ) -> u64 {
         self.base
@@ -435,21 +435,21 @@ impl EotSnapshot {
     
     /// The crit multiplied based on the handling.  
     /// Output is scaled by `1000000`  to allow for greater accuracy for [`CDHHandle::Avg`].
-    const fn crt_mod(&self, handle: CDHHandle) -> u64 {
+    const fn crt_mod(&self, handle: HitTypeHandle) -> u64 {
         match handle {
-            CDHHandle::Yes => self.crit_damage as u64 * 1000,
-            CDHHandle::No => 1000 * 1000,
-            CDHHandle::Avg { chance } => 1000000 + (self.crit_damage as u64 - 1000) * chance as u64,
+            HitTypeHandle::Yes => self.crit_damage as u64 * 1000,
+            HitTypeHandle::No => 1000 * 1000,
+            HitTypeHandle::Avg { chance } => 1000000 + (self.crit_damage as u64 - 1000) * chance as u64,
         }
     }
 
     /// The direct hit multiplier based on the handling.  
     /// Output is scaled by `100000` to allow for greater accuracy for [`CDHHandle::Avg`].
-    const fn dh_mod(&self, handle: CDHHandle) -> u64 {
+    const fn dh_mod(&self, handle: HitTypeHandle) -> u64 {
         match handle {
-            CDHHandle::Yes => 125000,
-            CDHHandle::No => 100000,
-            CDHHandle::Avg { chance } => 100000 + 25 * chance as u64,
+            HitTypeHandle::Yes => 125000,
+            HitTypeHandle::No => 100000,
+            HitTypeHandle::Avg { chance } => 100000 + 25 * chance as u64,
         }
     }
 }

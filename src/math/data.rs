@@ -12,6 +12,8 @@ pub const fn attack_power(job: Job) -> JobField {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+// This is the naming conventions used and its not even really an acronym
+#[allow(clippy::upper_case_acronyms)]
 pub enum JobField {
     HP,
     MP,
@@ -25,6 +27,8 @@ pub enum JobField {
 // Levels is just an int from 0..=80
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+// This is the naming conventions used and its not even really an acronym
+#[allow(clippy::upper_case_acronyms)]
 pub enum LevelField {
     MP,
     MAIN,
@@ -35,6 +39,8 @@ pub enum LevelField {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+// This is the naming conventions used and its not even really an acronym
+#[allow(clippy::upper_case_acronyms)]
 pub enum ClanField {
     STR,
     VIT,

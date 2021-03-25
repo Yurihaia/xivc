@@ -2,14 +2,14 @@
 macro_rules! action_combo {
     (
         $(
-            $(#[$attrs:meta])?
+            $(#[$attrs:meta])*
             $v:vis enum $name:ident {
                 $($action:ident),* $(,)?
             }
         )*
     ) => {
         $(
-            $(#[$attrs])?
+            $(#[$attrs])*
             $v enum $name {
                 None,
                 $(
@@ -28,5 +28,45 @@ macro_rules! action_combo {
                 }
             }
         )*
+    }
+}
+
+#[macro_export]
+macro_rules! action_cooldown {
+    (
+        $(#[$attrs:meta])*
+        $v:vis enum $name:ident : $parent:path {
+            $($action:ident),* $(,)?
+        }
+    ) => {
+        $(#[$attrs])*
+        $v enum $name {
+            $(
+                $action,
+            )*
+        }
+
+        impl ::std::convert::From<$name> for $parent {
+            fn from(e: $name) -> Self {
+                match e {
+                    $(
+                        $name::$action => <$parent>::$action,
+                    )*
+                }
+            }
+        }
+
+        impl ::std::convert::TryFrom<$parent> for $name {
+            type Error = $parent;
+
+            fn try_from(value: $parent) -> Result<Self, Self::Error> {
+                match value {
+                    $(
+                        <$parent>::$action => Ok(Self::$action),
+                    )*
+                    v => Err(v)
+                }
+            }
+        }
     }
 }

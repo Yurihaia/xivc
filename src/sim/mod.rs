@@ -160,6 +160,8 @@ impl<T> ValueModifier<T> {
 }
 
 pub type DamageModifierFn = fn(e: EffectInstance, damage: DamageInstance) -> DamageInstance;
+// Chance is a scaled by 1000 to get probability (every 1 is 0.1%)
+// For instance, Chain adds 100
 pub type ProbabilityModifierFn = fn(e: EffectInstance, chance: u64) -> u64;
 pub type StatsModifierFn = fn(e: EffectInstance, stats: PlayerStats) -> PlayerStats;
 
