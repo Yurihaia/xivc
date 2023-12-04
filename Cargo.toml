@@ -1,0 +1,13 @@
+[workspace]
+members = [ "crates/*" ]
+resolver = "2"
+
+[workspace.package]
+license = "MIT"
+authors = [ "Rime Frost @ Lamia" ]
+edition = "2021"
+
+[workspace.dependencies]
+xivc-core = { path = "./crates/xivc-core" }
+macros = { path = "./crates/macros" }
+serde = { version = "1.0", default-features = false }
