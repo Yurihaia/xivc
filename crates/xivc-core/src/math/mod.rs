@@ -61,10 +61,8 @@ pub struct PlayerInfo {
 #[derive(Copy, Clone, Debug)]
 /// Information about the weaponn the player has equipped
 pub struct WeaponInfo {
-    /// "Physical Damage" field, default to 0 on if not present
-    pub phys_dmg: u16,
-    /// "Magic Damage" field, default to 0 on if not present
-    pub magic_dmg: u16,
+    /// "Physical Damage" or "Magic Damage" field, they are always the same
+    pub wd: u16,
     /// "Auto Attack" field, multiplied by 100
     pub auto: u16,
     /// "Weapon Delay" field, multiplied by 100
@@ -254,19 +252,23 @@ impl XivMath {
             ActionStat::HealingMagic => JobField::MND,
         };
         data::level(self.info.lvl, LevelField::MAIN) * data::job(self.info.job, stat_field) / 1000
-            + if let ActionStat::AttackPower = stat {
-                self.weapon.phys_dmg as u64
-            } else {
-                self.weapon.magic_dmg as u64
-            }
+            + self.weapon.wd as u64
     }
 
     /// The Attack Damage modifier based on the action stat used.  
     /// The output of this function is a multiplier scaled by `100`.
     pub const fn atk_damage(&self, stat: ActionStat) -> u64 {
         let lvl_main = data::level(self.info.lvl, LevelField::MAIN);
-        data::atk_mod(self.info.job, self.info.lvl) * (self.main_stat(stat) - lvl_main) / lvl_main
-            + 100
+        // self.main_stat(stat) can be under lvl_main bc of job modifiers
+        // so we handle that here
+        let main = self.main_stat(stat);
+        let atk_mod = data::atk_mod(self.info.job, self.info.lvl);
+        if main < lvl_main {
+            // seems to work. pretty sure div_ceil is correct here.
+            100 - div_ceil(atk_mod * (lvl_main - main), lvl_main)
+        } else {
+            atk_mod * (main - lvl_main) / lvl_main + 100
+        }
     }
 
     /// The Determination modifier.  
@@ -351,7 +353,7 @@ impl XivMath {
     pub const fn aa_mod(&self) -> u64 {
         (data::level(self.info.lvl, LevelField::MAIN)
             * data::job(self.info.job, data::attack_power(self.info.job)) / 1000
-            + self.weapon.phys_dmg as u64)
+            + self.weapon.wd as u64)
             * self.weapon.delay as u64 / 300
     }
 
@@ -383,12 +385,14 @@ impl XivMath {
         let this = self.with_stats(buffs);
         // The exact order is unknown, and should only lead to ~1-2 damage variation.
         // This order is used by Ari in their tank calc sheet.
-        let prebuff = potency
-            * this.wd_mod(stat) / 100
+        let prerand = potency
             * this.atk_damage(stat) / 100
             * this.det_damage(dhit.is_force()) / 1000
             * this.ten_damage() / 1000
+            * this.wd_mod(stat) / 100
             * traits / 100
+            + (potency < 100) as u64;
+        let prebuff = prerand
             * this.crit_mod(crit, buffs) / 1000000
             * this.dhit_mod(dhit, buffs) / 1000000
             * rand / 10000;
@@ -410,16 +414,29 @@ impl XivMath {
         buffs: &impl Buffs,
     ) -> EotSnapshot {
         let this = self.with_stats(buffs);
-        let prebuff = potency
-            * this.atk_damage(stat) / 100
-            * this.det_damage(false) / 1000
-            * this.ten_damage() / 1000
-            * this.speed_mod(speed_stat) / 1000
-            * this.wd_mod(stat) / 100
-            * traits / 100
-            + 1;
+        // why
+        #[rustfmt::skip]
+        let prerand = match stat {
+            ActionStat::AttackMagic => potency
+                * this.wd_mod(stat) / 100
+                * this.atk_damage(stat) / 100
+                * this.speed_mod(speed_stat) / 1000
+                * this.det_damage(false) / 1000
+                * this.ten_damage() / 1000
+                * traits / 100
+                + (potency < 100) as u64,
+            ActionStat::AttackPower => potency
+                * this.atk_damage(stat) / 100
+                * this.det_damage(false) / 1000
+                * this.ten_damage() / 1000
+                * this.speed_mod(speed_stat) / 1000
+                * this.wd_mod(stat) / 100
+                * traits / 100
+                + (potency < 100) as u64,
+            _ => panic!("ActionStat::HealingMagic cannot be used in XivMath::dot_damage_snapshot"),
+        };
         EotSnapshot {
-            base: buffs.basic_damage(prebuff, stat),
+            base: buffs.basic_damage(prerand, stat),
             crit_chance: buffs.crit_chance(this.crit_chance()) as u16,
             dhit_chance: buffs.dhit_chance(this.dhit_chance()) as u16,
             crit_damage: this.crit_damage() as u16
@@ -441,13 +458,15 @@ impl XivMath {
         buffs: &impl Buffs,
     ) -> u64 {
         let this = self.with_stats(buffs);
-        let prebuff = potency
-            * this.aa_mod() / 100
+        let prerng = potency
             * this.atk_damage(ActionStat::AttackPower) / 100
             * this.det_damage(dhit.is_force()) / 1000
             * this.ten_damage() / 1000
             * this.sks_mod() / 1000
+            * this.aa_mod() / 100
             * traits / 100
+            + (potency < 100) as u64;
+        let prebuff = prerng
             * this.crit_mod(crit, buffs) / 1000000
             * this.dhit_mod(dhit, buffs) / 1000000
             * rand / 10000;
@@ -519,5 +538,17 @@ impl EotSnapshot {
             HitTypeHandle::Yes => damage * 1000,
             HitTypeHandle::No => 1000000,
         }
+    }
+}
+
+// shamelessly stolen from rust stdlib
+// why is this not stable yet
+const fn div_ceil(lhs: u64, rhs: u64) -> u64 {
+    let d = lhs / rhs;
+    let r = lhs % rhs;
+    if r > 0 && rhs > 0 {
+        d + 1
+    } else {
+        d
     }
 }

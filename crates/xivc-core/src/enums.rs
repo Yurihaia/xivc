@@ -179,7 +179,7 @@ pub enum Job {
     #[name = "Bard"]
     BRD,
     /// The healer job White Mage.
-    #[caster]
+    #[healer]
     #[name = "White Mage"]
     WHM,
     /// The magical ranged DPS job Black Mage.
