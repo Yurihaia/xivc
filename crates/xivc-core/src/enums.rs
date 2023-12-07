@@ -4,15 +4,12 @@ use macros::var_consts;
 use crate::math::ActionStat;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[var_consts]
-#[property(
+#[var_consts {
     /// Returns the human readly name of the clan's base race.
     pub const race_name: &'static str
-)]
-#[property(
     /// Returns the human readable name of the clan.
     pub const clan_name: &'static str
-)]
+}]
 /// Clans that a character can be.
 pub enum Clan {
     /// The Sea Wolves Roegadyn clan.
@@ -88,39 +85,24 @@ impl Display for Clan {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::upper_case_acronyms)] // this is literally the way FF14 does it so I'm not gonna change it :)))
-#[var_consts]
-#[flag(
+#[var_consts {
     /// Returns `true` if the job is a tank.
-    pub tank
-)]
-#[flag(
+    pub const tank
     /// Returns `true` if the job is a healer.
-    pub healer
-)]
-#[flag(
+    pub const healer
     /// Returns `true` if the job is a melee DPS.
-    pub melee
-)]
-#[flag(
+    pub const melee
     /// Returns `true` if the job is a physical ranged DPS.
-    pub ranged
-)]
-#[flag(
+    pub const ranged
     /// Returns `true` if the job is a magical ranged DPS.
-    pub caster
-)]
-#[flag(
+    pub const caster
     /// Returns `true` if the job is a limited job.
-    pub limited
-)]
-#[property(
+    pub const limited
     /// Returns `true` if the job has an associated soul crystal.
     pub const job: bool = true
-)]
-#[property(
     /// Returns the human friendly name of the job.
     pub const name: &'static str
-)]
+}]
 /// Jobs that a character can be.
 pub enum Job {
     /// The tank class Gladiator.
@@ -269,19 +251,14 @@ pub enum DamageElement {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[var_consts]
-#[flag(
+#[var_consts {
     /// Returns `true` if the damage type is physical.
-    pub physical
-)]
-#[flag(
+    pub const physical
     /// Returns `true` if the damage type is magical.
-    pub magical
-)]
-#[flag(
+    pub const magical
     /// Returns `true` if the damage type is unique.
-    pub unique
-)]
+    pub const unique
+}]
 /// The types that damage can be.
 pub enum DamageType {
     // Slashing physical damage.

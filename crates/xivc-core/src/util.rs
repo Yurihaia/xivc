@@ -67,7 +67,7 @@ impl<const MAX: u8> GaugeU8<MAX> {
     pub fn max(&self) -> u8 {
         MAX
     }
-    
+
     pub fn clear(&mut self) {
         self.0 = 0;
     }

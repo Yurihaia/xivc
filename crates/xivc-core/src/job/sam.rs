@@ -6,18 +6,20 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    job::{ActionType, Job, JobAction, JobState},
+    job::{Job, JobAction, JobState},
     job_cd_struct,
     math::SpeedStat,
     need_target, status_effect,
-    timing::{EventCascade, JobCds},
+    timing::{DurationInfo, EventCascade, ScaleTime},
     util::{actor_id, combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, consume_status_stack, StatusEffect, StatusEventExt},
-        ActionTargetting, Actor, CastSnapEvent, DamageEventExt, EventError, EventProxy, Faction,
-        Positional, World,
+        ActionTargetting, Actor, DamageEventExt, EventError, EventProxy, Faction, Positional,
+        World,
     },
 };
+
+use super::CastInitInfo;
 
 // so i can be lazy with associated constant derives
 #[derive(Copy, Clone, Debug, Default)]
@@ -39,69 +41,66 @@ impl Job for SamJob {
     type State = SamState;
     type Error = SamError;
     type Event = ();
+    type CdGroup = SamCdGroup;
 
-    // technically this can't handle dropped casts (cooldowns get reset if a cast drops)
-    // but i doubt that option will EVER be useful
-    fn init_cast<'w, P: EventProxy, W: World>(
-        ac: Self::Action,
-        s: &mut Self::State,
-        w: &W,
-        this: &'w W::Actor<'w>,
-        p: &mut P,
-    ) {
-        // all of these don't return to give better information to the user
-        #[rustfmt::skip] // rust fmt mangles these two things in a really bad way
-        let snap = s.cds.set_cast_lock(
-            p,
-            w.duration_info(),
-            ac.cast(),
-            600,
-            None,
-        );
+    fn check_cast<'w, E: EventProxy, W: World>(
+        action: Self::Action,
+        state: &Self::State,
+        world: &'w W,
+        src: &'w W::Actor<'w>,
+        event_sink: &mut E,
+    ) -> CastInitInfo<Self::CdGroup> {
+        let di = world.duration_info();
 
-        if ac.gcd() {
-            #[rustfmt::skip]
-            s.cds.set_gcd(
-                p,
-                w.duration_info(),
-                2500,
-                Some(SpeedStat::SkillSpeed)
-            );
-        }
+        let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
+        let (lock, snap) = di.get_cast(action.cast(), 600);
 
-        // don't need to worry about gcd length cooldowns
-        if !s.cds.job.available(ac, ac.cooldown(), ac.cd_charges()) {
-            p.error(EventError::Cooldown(ac.into()));
-        }
-        if ac.cooldown() > 0 {
-            s.cds.job.apply(ac, ac.cooldown(), ac.cd_charges());
+        let cd = action
+            .cd_group()
+            .map(|v| (v, action.cooldown(), action.cd_charges()));
+
+        // check errors
+        if let Some((cdg, cd, charges)) = cd {
+            if !state.cds.available(cdg, cd, charges) {
+                event_sink.error(EventError::Cooldown(action.into()));
+            }
         }
 
         use SamAction::*;
-        if s.kenki < ac.kenki_cost() {
-            SamError::Kenki(ac.kenki_cost()).submit(p);
+        if state.kenki < action.kenki_cost() {
+            SamError::Kenki(action.kenki_cost()).submit(event_sink);
         }
-        if ac.iaijutsu() && ac.sen_cost() != s.sen.count() {
-            SamError::IaiSen(ac.sen_cost()).submit(p);
-        }
-        match ac {
-            Ikishoten if !this.in_combat() => p.error(EventError::InCombat),
-            Namikiri if !this.has_own_status(OGI_READY) => {
-                SamError::OgiRdy.submit(p);
+        if let Some(sen_cost) = action.sen_cost() {
+            if sen_cost != state.sen.count() {
+                SamError::IaiSen(sen_cost).submit(event_sink);
             }
-            Shoha | Shoha2 if s.meditation != 3 => SamError::Meditation.submit(p),
-            Hagakure if s.sen.count() == 0 => SamError::HagaSen.submit(p),
+        }
+        match action {
+            Ikishoten if !src.in_combat() => event_sink.error(EventError::InCombat),
+            Namikiri if !src.has_own_status(OGI_READY) => {
+                SamError::OgiRdy.submit(event_sink);
+            }
+            Shoha | Shoha2 if state.meditation != 3 => SamError::Meditation.submit(event_sink),
+            Hagakure if state.sen.count() == 0 => SamError::HagaSen.submit(event_sink),
             // really ugly if the if guard is in the match branch lol
             KaeshiHiganbana | KaeshiGoken | KaeshiSetsugekka | KaeshiNamikiri => {
-                if !s.combos.check_kaeshi_for(ac) {
-                    SamError::Kaeshi(ac).submit(p)
+                if !state.combos.check_kaeshi_for(action) {
+                    SamError::Kaeshi(action).submit(event_sink)
                 }
             }
             _ => (),
         }
-        // create a cast snapshot event at the specified time
-        // will be 0 if ac.cast() is 0
-        p.event(CastSnapEvent::new(ac).into(), snap);
+
+        CastInitInfo {
+            gcd,
+            lock,
+            snap,
+            cd,
+        }
+    }
+
+    fn set_cd(state: &mut Self::State, group: Self::CdGroup, cooldown: u32, charges: u8) {
+        state.cds.apply(group, cooldown, charges);
     }
 
     fn cast_snap<'w, P: EventProxy, W: World>(
@@ -201,7 +200,7 @@ impl Job for SamJob {
                 let meikyo = consume_meikyo(p);
                 let combo = if meikyo || s.combos.main.check(MainCombo::Shifu) {
                     s.kenki += 10;
-                    s.sen.grant_kaa();
+                    s.sen.grant_ka();
                     true
                 } else {
                     false
@@ -251,7 +250,7 @@ impl Job for SamJob {
                 let meikyo = consume_meikyo(p);
                 let combo = if meikyo || s.combos.main.check(MainCombo::Fuko) {
                     s.kenki += 10;
-                    s.sen.grant_kaa();
+                    s.sen.grant_ka();
                     p.apply_status(FUKA, 1, this_id, dl);
                     true
                 } else {
@@ -450,76 +449,56 @@ const CIRCLE: ActionTargetting = ActionTargetting::circle(5);
 )]
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
-#[var_consts]
-#[flag(
-    /// Returns `true` if the action is a GCD.
-    pub gcd
-)]
-#[flag(
-    /// Returns `tru` if the action is an iaijutsu.
-    pub iaijutsu
-)]
-#[flag(
+#[var_consts {
     /// Returns `true` if the action uses tsubame gaeshi.
-    pub tsubame
-)]
-#[property(
+    pub const tsubame
+    /// Returns the base GCD recast time, or `None` if the action is not a gcd.
+    pub const gcd: ScaleTime?
+    pub const skill for gcd = ScaleTime::skill(2500)
     /// Returns the base milliseconds the action takes to cast.
-    pub const cast: u16 = 0
-)]
-#[property(
+    pub const cast: ScaleTime = ScaleTime::zero()
     /// Returns the human friendly name of the action.
     pub const name: &'static str
-)]
-#[property(
     /// Returns the cooldown of the skill in milliseconds.
     pub const cooldown: u32 = 0
-)]
-#[property(
-    /// Returns the number of charges a skill has, or 1 if it is a single charge skill.
+    /// Returns the number of charges a skill has, or `1`` if it is a single charge skill.
     pub const cd_charges: u8 = 1
-)]
-#[property(
     /// Returns the delay in milliseconds for the damage/statuses to be applied.
     pub const effect_delay: u32 = 0
-)]
-#[property(
     /// Returns the kenki cost of the specified action.
     pub const kenki_cost: u8 = 0
-)]
-#[property(
     /// Returns the number of sen needed to perform the iaijutsu.
-    pub const sen_cost: u8 = 0
-)]
+    pub const sen_cost: u8?
+}]
 pub enum SamAction {
-    #[gcd]
+    #[skill]
     #[name = "Hakaze"]
     Hakaze,
-    #[gcd]
+    #[skill]
     #[name = "Jinpu"]
     Jinpu,
-    #[gcd]
+    #[skill]
     #[name = "Shifu"]
     Shifu,
-    #[gcd]
+    #[skill]
     #[name = "Yukikaze"]
     Yukikaze,
-    #[gcd]
+    #[skill]
     #[name = "Gekko"]
     Gekko,
-    #[gcd]
+    #[skill]
     #[name = "Kasha"]
     Kasha,
-    #[gcd]
+    #[skill]
     #[name = "Fuga"]
     Fuga,
-    #[gcd]
+    #[skill]
     #[name = "Mangetsu"]
     Mangetsu,
-    #[gcd]
+    #[skill]
     #[name = "Oka"]
     Oka,
-    #[gcd]
+    #[skill]
     #[name = "Enpi"]
     Enpi,
     #[name = "Hissatsu: Shinten"]
@@ -552,7 +531,7 @@ pub enum SamAction {
     #[cd_charges = 2]
     Meikyo,
     // commenting this out for now because its a fake skill
-    // #[gcd]
+    // #[skill]
     // #[cast = 130]
     // #[name = "Iaijutsu"]
     // Iaijutsu,
@@ -564,7 +543,7 @@ pub enum SamAction {
     #[cooldown = 120000]
     Ikishoten,
     // commenting this out for now because its a fake skill
-    // #[gcd]
+    // #[skill]
     // #[name = "Tsubame-gaeshi"]
     // Tsubame,
     #[name = "Shoha"]
@@ -577,47 +556,44 @@ pub enum SamAction {
     Shoha2,
     #[name = "Fuko"]
     Fuko,
-    #[gcd]
-    #[cast = 1300]
+    #[skill]
+    #[cast = ScaleTime::skill(1300)]
     #[name = "Ogi Namikiri"]
     Namikiri,
-    #[gcd]
-    #[cast = 1300]
+    #[skill]
+    #[cast = ScaleTime::skill(1300)]
     #[name = "Higanbana"]
     #[sen_cost = 1]
-    #[iaijutsu]
     Higanbana,
-    #[gcd]
-    #[cast = 1300]
+    #[skill]
+    #[cast = ScaleTime::skill(1300)]
     #[name = "Tenka Goken"]
     #[sen_cost = 2]
-    #[iaijutsu]
     TenkaGoken,
-    #[gcd]
-    #[cast = 1300]
+    #[skill]
+    #[cast = ScaleTime::skill(1300)]
     #[name = "Midare Setsugekka"]
     #[sen_cost = 3]
-    #[iaijutsu]
     Midare,
-    #[gcd]
+    #[skill]
     #[name = "Kaeshi: Higanbana"]
     #[cooldown = 60000]
     #[cd_charges = 2]
     #[tsubame]
     KaeshiHiganbana,
-    #[gcd]
+    #[skill]
     #[name = "Kaeshi: Goken"]
     #[cooldown = 60000]
     #[cd_charges = 2]
     #[tsubame]
     KaeshiGoken,
-    #[gcd]
+    #[skill]
     #[name = "Kaeshi: Setsugekka"]
     #[cooldown = 60000]
     #[cd_charges = 2]
     #[tsubame]
     KaeshiSetsugekka,
-    #[gcd]
+    #[skill]
     #[name = "Kaeshi: Namikiri"]
     KaeshiNamikiri,
 }
@@ -628,20 +604,12 @@ impl SamAction {
     }
 }
 
-impl JobAction for SamAction {
-    fn action_type(&self) -> ActionType {
-        if self.gcd() {
-            ActionType::Weaponskill
-        } else {
-            ActionType::Ability
-        }
-    }
-}
+impl JobAction for SamAction {}
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct SamState {
-    pub cds: JobCds<SamCds>,
+    pub cds: SamCds,
     pub combos: SamCombos,
     pub sen: Sen,
     pub meditation: GaugeU8<3>,
@@ -652,7 +620,6 @@ impl JobState for SamState {
     fn advance(&mut self, time: u32) {
         self.combos.advance(time);
         self.cds.advance(time);
-        self.cds.job.advance(time);
     }
 }
 
@@ -726,7 +693,7 @@ impl Sen {
     pub fn grant_getsu(&mut self) {
         self.bits |= Self::GETSU
     }
-    pub fn grant_kaa(&mut self) {
+    pub fn grant_ka(&mut self) {
         self.bits |= Self::KA
     }
     pub fn count(&self) -> u8 {
@@ -739,15 +706,15 @@ impl Sen {
 
 job_cd_struct! {
     SamAction =>
-    
+
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
     pub SamCds
-    
+
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]
     pub SamCdGroup
-    
+
     shinten Shinten: Shinten;
     kyuten Kyuten: Kyuten;
     gyoten Gyoten: Gyoten;

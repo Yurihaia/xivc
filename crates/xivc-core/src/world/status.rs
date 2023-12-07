@@ -1,11 +1,15 @@
-use core::{fmt, hash, ops::Deref};
+use core::{
+    fmt::{self, Debug},
+    hash,
+    ops::Deref,
+};
 
 use crate::{
     enums::DamageInstance,
     math::{Buffs, PlayerStats},
 };
 
-use super::{ActorId, EventProxy, Actor};
+use super::{Actor, ActorId, EventProxy};
 
 #[derive(Debug, Clone, Copy)]
 pub struct StatusInstance {
@@ -77,7 +81,7 @@ impl fmt::Debug for StatusEffect {
         write!(
             f,
             "StatusEffect(\"{}\" @ {:?})",
-            self.0.name, self.0 as *const StatusVTable
+            self.0.name, self.0 as *const _
         )
     }
 }
@@ -86,12 +90,44 @@ impl fmt::Debug for StatusEffect {
 pub struct StatusVTable {
     pub name: &'static str,
     pub permanent: bool,
-    pub damage: ValueModifier<DamageModifierFn>,
-    pub crit: ValueModifier<ProbabilityModifierFn>,
-    pub dhit: ValueModifier<ProbabilityModifierFn>,
-    pub haste: Option<SpeedModifierFn>,
-    pub stats: Option<StatsModifierFn>,
+    pub damage: ValueModifier<DamageModifierFn<StatusInstance>>,
+    pub crit: ValueModifier<ProbabilityModifierFn<StatusInstance>>,
+    pub dhit: ValueModifier<ProbabilityModifierFn<StatusInstance>>,
+    pub haste: Option<SpeedModifierFn<StatusInstance>>,
+    pub stats: Option<StatsModifierFn<StatusInstance>>,
     pub duration: u32,
+}
+
+impl StatusVTable {
+    pub const fn empty(name: &'static str) -> Self {
+        StatusVTable {
+            name,
+            permanent: false,
+            damage: ValueModifier::empty(),
+            crit: ValueModifier::empty(),
+            dhit: ValueModifier::empty(),
+            duration: 0,
+            haste: None,
+            stats: None,
+        }
+    }
+}
+
+// this can be a trait but statuseffect shouldn't be
+// because status effects always have the same receiver
+pub trait JobEffect: Debug {
+    fn damage(&self, damage: DamageInstance) -> DamageInstance {
+        damage
+    }
+    fn crit(&self, chance: u64) -> u64 {
+        chance
+    }
+    fn dhit(&self, chance: u64) -> u64 {
+        chance
+    }
+    fn haste(&self) -> u64 {
+        100
+    }
 }
 
 #[derive(Debug)]
@@ -103,14 +139,17 @@ pub struct StatusSnapshot<'a> {
     // some examples of this include: darkside, army's paeon haste, enochian,
     // AF/UI (i believe it goes here), greased lightning, etc.
     // note that Main & Mend (things that say "base action damage")
-    // do NOT apply here, they go in "traits"
-    pub source_gauge: &'a [StatusInstance],
+    // do NOT apply here, they go in "traits" in the damage formula
+    pub job: &'a [&'a dyn JobEffect],
 }
 
 impl<'a> Buffs for StatusSnapshot<'a> {
     // doing these functions using iterators was less concise because of the incoming vs outgoing difference
     fn damage(&self, base: DamageInstance) -> DamageInstance {
         let mut acc = base;
+        for x in self.job {
+            acc = x.damage(base);
+        }
         for x in self.target {
             if let Some(f) = x.effect.damage.incoming {
                 acc = f(*x, acc);
@@ -121,16 +160,14 @@ impl<'a> Buffs for StatusSnapshot<'a> {
                 acc = f(*x, acc);
             }
         }
-        for x in self.source_gauge {
-            if let Some(f) = x.effect.damage.outgoing {
-                acc = f(*x, acc);
-            }
-        }
         acc
     }
 
     fn crit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
+        for x in self.job {
+            acc = x.crit(base);
+        }
         for x in self.target {
             if let Some(f) = x.effect.crit.incoming {
                 acc = f(*x, acc);
@@ -141,27 +178,20 @@ impl<'a> Buffs for StatusSnapshot<'a> {
                 acc = f(*x, acc);
             }
         }
-        for x in self.source_gauge {
-            if let Some(f) = x.effect.crit.outgoing {
-                acc = f(*x, acc);
-            }
-        }
         acc
     }
 
     fn dhit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
+        for x in self.job {
+            acc = x.dhit(base);
+        }
         for x in self.target {
             if let Some(f) = x.effect.dhit.incoming {
                 acc = f(*x, acc);
             }
         }
         for x in self.source {
-            if let Some(f) = x.effect.dhit.outgoing {
-                acc = f(*x, acc);
-            }
-        }
-        for x in self.source_gauge {
             if let Some(f) = x.effect.dhit.outgoing {
                 acc = f(*x, acc);
             }
@@ -176,11 +206,6 @@ impl<'a> Buffs for StatusSnapshot<'a> {
                 acc = f(*x, acc);
             }
         }
-        for x in self.source_gauge {
-            if let Some(f) = x.effect.stats {
-                acc = f(*x, acc);
-            }
-        }
         acc
     }
 
@@ -189,13 +214,11 @@ impl<'a> Buffs for StatusSnapshot<'a> {
     // jobs have more than one speed boost
     fn haste(&self, base: u64) -> u64 {
         let mut acc = 100;
-        for x in self.source {
-            if let Some(f) = x.effect.haste {
-                acc *= f(*x);
-                acc /= 100;
-            }
+        for x in self.job {
+            acc *= x.haste();
+            acc /= 100;
         }
-        for x in self.source_gauge {
+        for x in self.source {
             if let Some(f) = x.effect.haste {
                 acc *= f(*x);
                 acc /= 100;
@@ -205,15 +228,15 @@ impl<'a> Buffs for StatusSnapshot<'a> {
     }
 }
 
-pub type DamageModifierFn = fn(e: StatusInstance, damage: DamageInstance) -> DamageInstance;
+pub type DamageModifierFn<P> = fn(e: P, damage: DamageInstance) -> DamageInstance;
 // Chance is a scaled by 1000 to get probability (every 1 is 0.1%)
 // For instance, Chain adds 100
-pub type ProbabilityModifierFn = fn(e: StatusInstance, chance: u64) -> u64;
+pub type ProbabilityModifierFn<P> = fn(e: P, chance: u64) -> u64;
 // for potions and basically potions only?
 // technically food but that can usually be put into stats
-pub type StatsModifierFn = fn(e: StatusInstance, stats: PlayerStats) -> PlayerStats;
+pub type StatsModifierFn<P> = fn(e: P, stats: PlayerStats) -> PlayerStats;
 // haste buffs - returns the buff as a multiplier scaled by 100
-pub type SpeedModifierFn = fn(e: StatusInstance) -> u64;
+pub type SpeedModifierFn<P> = fn(e: P) -> u64;
 
 #[macro_export]
 macro_rules! status_effect {
@@ -272,26 +295,6 @@ macro_rules! __status_effect_inner {
     (modfn out $($t:tt)*) => { $crate::world::status::ValueModifier::outgoing($($t)*) };
 }
 
-impl StatusVTable {
-    const EMPTY: Self = Self {
-        name: "",
-        permanent: false,
-        damage: ValueModifier::empty(),
-        crit: ValueModifier::empty(),
-        dhit: ValueModifier::empty(),
-        duration: 0,
-        haste: None,
-        stats: None,
-    };
-
-    pub const fn empty(name: &'static str) -> Self {
-        StatusVTable {
-            name,
-            ..Self::EMPTY
-        }
-    }
-}
-
 #[derive(Copy, Clone, Debug)]
 pub struct ValueModifier<T> {
     pub incoming: Option<T>,
@@ -347,7 +350,10 @@ pub fn consume_status_stack<'w, A: Actor<'w>>(
 ) -> bool {
     let present = actor.has_own_status(status);
     if present {
-        proxy.event(StatusEvent::remove_stacks(status, 1, actor.id()).into(), time);
+        proxy.event(
+            StatusEvent::remove_stacks(status, 1, actor.id()).into(),
+            time,
+        );
     }
     present
 }

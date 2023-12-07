@@ -4,7 +4,7 @@ use syn::{
     LitInt, LitStr, Token,
 };
 
-use std::{fs::File, io::Read, path::PathBuf, env};
+use std::{env, fs::File, io::Read, path::PathBuf};
 
 use quote::quote;
 
@@ -63,7 +63,8 @@ pub fn embed_data(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         output_type,
         ..
     } = syn::parse_macro_input!(item as EmbedDataInput);
-    let mut path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::from("./")));
+    let mut path =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::from("./")));
     path.push(file.value());
     let mut csv_str = String::new();
     File::open(&path)

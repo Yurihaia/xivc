@@ -1,10 +1,7 @@
-#[cfg(feature = "alloc")]
-pub mod queue;
-
 pub mod status;
 
 use crate::{
-    jobs,
+    job,
     math::{Buffs, SpeedStat, XivMath},
     timing::DurationInfo,
 };
@@ -44,14 +41,16 @@ pub trait Actor<'w>: 'w {
     /// Returns `true` if the actor has an `effect` applied by a `source` actor.
     fn has_status(&self, effect: StatusEffect, source: ActorId) -> bool {
         // r-a chokes on this for some reason
-        self.statuses().any(|v| v.effect == effect && v.source == source)
+        self.statuses()
+            .any(|v| v.effect == effect && v.source == source)
     }
-    
+
     fn get_own_status(&self, effect: StatusEffect) -> Option<StatusInstance> {
         let id = self.id();
-        self.statuses().find(|v| v.effect == effect && v.source == id)
+        self.statuses()
+            .find(|v| v.effect == effect && v.source == id)
     }
-    
+
     fn has_own_status(&self, effect: StatusEffect) -> bool {
         self.get_own_status(effect).is_some()
     }
@@ -78,8 +77,8 @@ pub trait Actor<'w>: 'w {
 pub enum EventError {
     Gcd,
     Lock,
-    Cooldown(jobs::Action),
-    Job(jobs::Error),
+    Cooldown(job::Action),
+    Job(job::Error),
     InCombat,
     NoTarget,
 }
@@ -105,7 +104,7 @@ pub enum Event {
     Damage(DamageEvent),
     Status(StatusEvent),
     CastSnap(CastSnapEvent),
-    Job(jobs::JobEvent),
+    Job(job::JobEvent),
     MpTick(ActorId),
     DotTick(ActorId),
 }
@@ -187,10 +186,10 @@ impl From<StatusEvent> for Event {
 
 #[derive(Debug, Copy, Clone)]
 pub struct CastSnapEvent {
-    pub action: jobs::Action,
+    pub action: job::Action,
 }
 impl CastSnapEvent {
-    pub fn new(action: impl Into<jobs::Action>) -> Self {
+    pub fn new(action: impl Into<job::Action>) -> Self {
         Self {
             action: action.into(),
         }

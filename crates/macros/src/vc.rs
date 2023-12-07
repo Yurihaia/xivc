@@ -1,329 +1,289 @@
 use std::collections::HashMap;
 
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens, TokenStreamExt};
+use proc_macro2::{Ident, TokenStream};
+use quote::{quote, ToTokens};
 use syn::{
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-    Attribute, Expr, Fields, ItemEnum, Meta, Path, Token, Type, Visibility,
+    parse::{Parse, ParseStream, Parser},
+    Attribute, Expr, Fields, ItemEnum, Meta, Token, Type, Visibility,
 };
 
-pub fn var_const_impl(item: TokenStream) -> syn::Result<TokenStream> {
-    let mut en = syn::parse2::<ItemEnum>(item)?;
-    let en_name = &en.ident;
+pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
+    let mut item: ItemEnum = syn::parse2(item)?;
+    let item_name = &item.ident;
 
-    // let consts = Vec::new();
-
-    let mut kept_attrs = Vec::with_capacity(en.attrs.capacity());
-
-    let mut args: HashMap<Ident, (Span, ArgMeta)> = HashMap::new();
-
-    for x in en.attrs.drain(..) {
-        let path = x.path();
-        let span = x.meta.span();
-        if path.is_ident("property") {
-            let meta: PropArgMeta = x.parse_args()?;
-            if args.contains_key(&meta.id) {
-                return Err(syn::Error::new(
-                    meta.id.span(),
-                    format_args!("duplicate argument {}", meta.id),
-                ));
+    // done to preserve const ordering, which is noticable in documentation.
+    let (mut consts, names) = Parser::parse2(
+        |input: ParseStream| {
+            let mut names = HashMap::new();
+            let mut consts = Vec::new();
+            while !input.is_empty() {
+                let item: VarConstAttrItem = input.parse()?;
+                if names.contains_key(&item.id) {
+                    let msg = format!("the constant `{}` is defined multiple times", item.id);
+                    return Err(syn::Error::new_spanned(item.id, msg));
+                }
+                names.insert(item.id.clone(), consts.len());
+                consts.push((item, TokenStream::new()));
             }
-            args.insert(meta.id.clone(), (span, ArgMeta::Const(Vec::new(), meta)));
-        } else if path.is_ident("flag") {
-            let meta: FlagArgMeta = x.parse_args()?;
-            if args.contains_key(&meta.id) {
-                return Err(syn::Error::new(
-                    meta.id.span(),
-                    format_args!("duplicate argument {}", meta.id),
-                ));
-            }
-            args.insert(meta.id.clone(), (span, ArgMeta::Flag(Vec::new(), meta)));
-        } else {
-            kept_attrs.push(x);
-        }
-    }
+            Ok((consts, names))
+        },
+        attr,
+    )?;
 
-    en.attrs = kept_attrs;
-
-    for x in &mut en.variants {
-        let mut kept_attrs = Vec::with_capacity(x.attrs.capacity());
-
+    for x in &mut item.variants {
+        let skip = match x.fields {
+            Fields::Unit => TokenStream::new(),
+            Fields::Unnamed(..) => quote! { ( .. ) },
+            Fields::Named(..) => quote! { { .. } },
+        };
+        let mut kept = Vec::with_capacity(x.attrs.len());
         for a in x.attrs.drain(..) {
-            let span = a.span();
-            if let Some((_, meta)) = get_path_ident(a.path()).and_then(|x| args.get_mut(&x)) {
-                match a.meta {
-                    Meta::Path(_) => match meta {
-                        ArgMeta::Flag(vars, _) => {
-                            vars.push((x.ident.clone(), EnumSkipType::from_fields(&x.fields)));
-                            continue;
-                        }
-                        _ => return Err(syn::Error::new(span, "a path attribute must be a flag")),
-                    },
-                    Meta::NameValue(nv) => match meta {
-                        ArgMeta::Const(vars, ..) => {
-                            vars.push((
-                                x.ident.clone(),
-                                nv.value,
-                                EnumSkipType::from_fields(&x.fields),
-                            ));
-                            continue;
-                        }
-                        _ => {
-                            return Err(syn::Error::new(
-                                span,
-                                "a name-value attribute must have a value",
-                            ))
-                        }
-                    },
-                    _ => {}
+            let var_id = &x.ident;
+            if let Some(id) = a.path().get_ident().cloned() {
+                if let Some(i) = names.get(&id) {
+                    if let Meta::List(..) = &a.meta {
+                        return Err(syn::Error::new(
+                            a.bracket_token.span.join(),
+                            format!("cannot use a list attribute for `{}`.", id),
+                        ));
+                    }
+                    let (c, cs) = &mut consts[*i];
+                    match &c.item_type {
+                        ConstType::Flag { proxy } => match a.meta {
+                            Meta::Path(_) => {
+                                if let Some((_, real, _, def)) = proxy {
+                                    let def = def.clone();
+                                    let mut real = real.clone();
+                                    real.set_span(id.span());
+                                    let Some((src, cs)) = names.get(&real).map(|v| &mut consts[*v])
+                                    else {
+                                        let msg = format!("unknown constant name `{}`", real);
+                                        return Err(syn::Error::new_spanned(real, msg));
+                                    };
+                                    let ret = match &src.item_type {
+                                        ConstType::Value { optional, .. } => {
+                                            if optional.is_some() {
+                                                quote! { ::core::option::Option::Some( #def ) }
+                                            } else {
+                                                quote! { #def }
+                                            }
+                                        }
+                                        ConstType::Flag { proxy } => {
+                                            if proxy.is_some() {
+                                                let msg = format!("cannot create a proxy constant for proxy constant `{}`", real);
+                                                return Err(syn::Error::new_spanned(id, msg));
+                                            }
+                                            quote! { true }
+                                        }
+                                    };
+                                    cs.extend(quote! {
+                                        Self::#var_id #skip => {
+                                            let _ = Self::#real;
+                                            #ret
+                                        }
+                                    });
+                                } else {
+                                    cs.extend(quote! {
+                                        Self::#var_id #skip => {
+                                             // gives r-a hover info. such a dumb hack
+                                            let _ = Self::#id;
+                                            true
+                                        }
+                                    });
+                                }
+                            }
+                            _ => {
+                                return Err(syn::Error::new(
+                                    a.bracket_token.span.join(),
+                                    format!("cannot use a name-value attribute for `{}`", id),
+                                ))
+                            }
+                        },
+                        ConstType::Value {
+                            optional, default, ..
+                        } => match a.meta {
+                            Meta::Path(_) => {
+                                if optional.is_some() {
+                                    if let Some((_, def)) = default {
+                                        cs.extend(quote! {
+                                            Self::#var_id #skip => {
+                                                let _ = Self::#id;
+                                                ::core::option::Option::Some(#def)
+                                            }
+                                        });
+                                        continue;
+                                    }
+                                }
+                                return Err(syn::Error::new(
+                                    a.bracket_token.span.join(),
+                                    format!("cannot use a flag attribute for `{}`", id),
+                                ));
+                            }
+                            Meta::NameValue(nv) => {
+                                let val = nv.value;
+                                if optional.is_some() {
+                                    cs.extend(quote! {
+                                        Self::#var_id #skip => {
+                                            let _ = Self::#id;
+                                            ::core::option::Option::Some(#val)
+                                        }
+                                    });
+                                } else {
+                                    cs.extend(quote! {
+                                        Self::#var_id #skip => {
+                                            let _ = Self::#id;
+                                            #val
+                                        }
+                                    });
+                                }
+                            }
+                            _ => unreachable!(),
+                        },
+                    }
+                    continue;
                 }
             }
-            kept_attrs.push(a);
+            kept.push(a);
         }
-
-        x.attrs = kept_attrs;
+        x.attrs = kept;
     }
 
-    let arg_iter = args.into_iter().map(|(id, (_, meta))| match meta {
-        ArgMeta::Const(vars, meta) => {
-            let viter = vars.into_iter().map(|(var, val, skip)| {
-                quote! {
-                    Self::#var #skip => #val,
+    let mut other = TokenStream::new();
+
+    let ci = consts
+        .into_iter()
+        .map(|(c, cs)| {
+            let VarConstAttrItem {
+                attrs,
+                vis,
+                cnst,
+                id,
+                item_type,
+                ..
+            } = c;
+            let (ret, def) = match item_type {
+                ConstType::Value {
+                    ty,
+                    optional,
+                    default,
+                    ..
+                } => {
+                    let ret = if optional.is_some() {
+                        quote! { ::core::option::Option<#ty> }
+                    } else {
+                        ty.into_token_stream()
+                    };
+                    let def = if optional.is_some() {
+                        quote! { _ => ::core::option::Option::None, }
+                    } else if let Some((_, def)) = default {
+                        quote! { _ => #def, }
+                    } else {
+                        quote! {}
+                    };
+                    (ret, def)
                 }
-            });
-            let def = meta
-                .default
-                .map(|ArgDefault { val, .. }| {
-                    quote! {
-                        _ => #val,
+                ConstType::Flag { proxy } => {
+                    if let Some((_, real, _, _)) = proxy {
+                        // again, for r-a hover info.
+                        other.extend(quote! {
+                            const _: () = {
+                                let _ = #item_name :: #real;
+                            };
+                        });
+                        return TokenStream::new();
                     }
-                })
-                .unwrap_or_else(|| quote! {});
-            let c = meta.c;
-            let vis = meta.vis;
-            let ty = meta.ty;
-            let id = meta.id;
-            let attrs = meta.attrs.into_iter();
+                    let ret = quote! { bool };
+                    let def = quote! { _ => false };
+                    (ret, def)
+                }
+            };
+
             quote! {
                 #( #attrs )*
-                #vis #c fn #id (&self) -> #ty {
+                #vis #cnst fn #id (&self) -> #ret {
                     match self {
-                        #( #viter )*
+                        #cs
                         #def
                     }
                 }
             }
-        }
-        ArgMeta::Flag(vars, meta) => {
-            let it = vars.iter().map(|(id, skip)| quote! { #id #skip });
-            let tks = if vars.is_empty() {
-                quote! {}
-            } else {
-                quote! { #( Self::#it )|* => true, }
-            };
-            let vis = meta.vis;
-            let attrs = meta.attrs.into_iter();
-            quote! {
-                #( #attrs )*
-                #vis const fn #id (&self) -> bool {
-                    match self {
-                        #tks
-                        _ => false,
-                    }
-                }
-            }
-        }
-    });
+        })
+        .collect::<TokenStream>();
 
     Ok(quote! {
-        #en
-
-        impl #en_name {
-            #( #arg_iter )*
+        #item
+        impl #item_name {
+            #ci
         }
+        #other
     })
 }
 
-fn get_path_ident(path: &Path) -> Option<Ident> {
-    if let Some(v) = path.get_ident() {
-        return Some(v.clone());
-    }
+struct VarConstAttrItem {
+    attrs: Vec<Attribute>,
+    vis: Visibility,
+    cnst: Option<Token![const]>,
+    id: Ident,
+    item_type: ConstType,
+}
 
-    if path.segments.len() == 2 {
-        let seg0 = &path.segments[0];
-        let seg1 = &path.segments[1];
-        if seg0.arguments.is_none() && seg0.ident == "var_const" && seg1.arguments.is_none() {
-            Some(seg1.ident.clone())
+impl Parse for VarConstAttrItem {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(Self {
+            attrs: Attribute::parse_outer(input)?,
+            vis: input.parse()?,
+            cnst: input.parse()?,
+            id: input.parse()?,
+            item_type: input.parse()?,
+        })
+    }
+}
+
+enum ConstType {
+    Value {
+        _colon: Token![:],
+        ty: Type,
+        optional: Option<Token![?]>,
+        default: Option<(Token![=], Expr)>,
+    },
+    Flag {
+        proxy: Option<(Token![for], Ident, Token![=], Expr)>,
+    },
+}
+
+impl Parse for ConstType {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let l = input.lookahead1();
+        if l.peek(Token![:]) {
+            Ok(Self::Value {
+                _colon: input.parse()?,
+                ty: input.parse()?,
+                optional: input.parse()?,
+                default: {
+                    let l = input.lookahead1();
+                    if l.peek(Token![=]) {
+                        Some((input.parse()?, input.parse()?))
+                    } else {
+                        None
+                    }
+                },
+            })
         } else {
-            None
-        }
-    } else {
-        None
-    }
-}
-
-enum ArgMeta {
-    Const(Vec<(Ident, Expr, EnumSkipType)>, PropArgMeta),
-    Flag(Vec<(Ident, EnumSkipType)>, FlagArgMeta),
-}
-
-enum EnumSkipType {
-    None,
-    Paren,
-    Curly,
-}
-
-impl EnumSkipType {
-    pub fn from_fields(fields: &Fields) -> Self {
-        match fields {
-            Fields::Named(_) => Self::Curly,
-            Fields::Unit => Self::None,
-            Fields::Unnamed(_) => Self::Paren,
+            Ok(Self::Flag {
+                proxy: {
+                    let l = input.lookahead1();
+                    if l.peek(Token![for]) {
+                        Some((
+                            input.parse()?,
+                            input.parse()?,
+                            input.parse()?,
+                            input.parse()?,
+                        ))
+                    } else {
+                        None
+                    }
+                },
+            })
         }
     }
 }
-
-impl ToTokens for EnumSkipType {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        match self {
-            Self::None => (),
-            Self::Curly => tokens.append_all(quote! { { .. } }),
-            Self::Paren => tokens.append_all(quote! { (..) }),
-        }
-    }
-}
-
-struct PropArgMeta {
-    attrs: Vec<Attribute>,
-    vis: Visibility,
-    c: Option<Token![const]>,
-    id: Ident,
-    _colon: Token![:],
-    ty: Type,
-    default: Option<ArgDefault>,
-}
-
-impl Parse for PropArgMeta {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            attrs: input.call(Attribute::parse_outer)?,
-            vis: input.parse()?,
-            c: {
-                let l = input.lookahead1();
-                if l.peek(Token![const]) {
-                    Some(input.parse()?)
-                } else {
-                    None
-                }
-            },
-            id: input.parse()?,
-            _colon: input.parse()?,
-            ty: input.parse()?,
-            default: {
-                let l = input.lookahead1();
-                if l.peek(Token![=]) {
-                    Some(input.parse()?)
-                } else {
-                    None
-                }
-            },
-        })
-    }
-}
-
-struct ArgDefault {
-    _eq: Token![=],
-    val: Expr,
-}
-
-impl Parse for ArgDefault {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            _eq: input.parse()?,
-            val: input.parse()?,
-        })
-    }
-}
-
-struct FlagArgMeta {
-    attrs: Vec<Attribute>,
-    vis: Visibility,
-    id: Ident,
-}
-
-impl Parse for FlagArgMeta {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            attrs: input.call(Attribute::parse_outer)?,
-            vis: input.parse()?,
-            id: input.parse()?,
-        })
-    }
-}
-
-// struct IndexArgMeta {
-//     attrs: Vec<Attribute>,
-//     vis: Visibility,
-//     id: Ident,
-// }
-
-// use proc_macro2::Ident;
-// use syn::{
-//     parse::{Parse, ParseStream},
-//     Attribute, Expr, Token, Type, Visibility,
-// };
-
-// struct PropertyDeclMeta {
-//     pub attrs: Vec<Attribute>,
-//     pub vis: Visibility,
-//     pub const_token: Option<Token![const]>,
-//     pub ident: Ident,
-//     pub colon_token: Token![:],
-//     pub ty: Type,
-//     pub eq_token: Option<Token![=]>,
-//     pub default: Option<Expr>,
-// }
-
-// impl Parse for PropertyDeclMeta {
-//     fn parse(input: ParseStream) -> syn::Result<Self> {
-//         let attrs = input.call(Attribute::parse_outer)?;
-//         let vis = input.parse()?;
-//         let const_token = input.parse()?;
-//         let ident = input.parse()?;
-//         let colon_token = input.parse()?;
-//         let ty = input.parse()?;
-//         let eq_token = input.parse()?;
-//         let default = if let Some(_) = eq_token {
-//             Some(input.parse()?)
-//         } else {
-//             None
-//         };
-//         Ok(Self {
-//             attrs,
-//             vis,
-//             const_token,
-//             ident,
-//             colon_token,
-//             ty,
-//             eq_token,
-//             default,
-//         })
-//     }
-// }
-
-// struct FlagDeclMeta {
-//     pub attrs: Vec<Attribute>,
-//     pub vis: Visibility,
-//     pub ident: Ident,
-// }
-
-// impl Parse for FlagDeclMeta {
-//     fn parse(input: ParseStream) -> syn::Result<Self> {
-//         Ok(Self {
-//             attrs: input.call(Attribute::parse_outer)?,
-//             vis: input.parse()?,
-//             ident: input.parse()?,
-//         })
-//     }
-// }
