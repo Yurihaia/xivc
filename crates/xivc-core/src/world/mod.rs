@@ -66,7 +66,7 @@ pub trait Actor<'w>: 'w {
         self.statuses()
             .find(|v| v.effect == effect && v.source == id)
     }
-    /// Returns `true`` if this actor has a status instance applied by
+    /// Returns `true` if this actor has a status instance applied by
     /// this actor of the specified effect.
     fn has_own_status(&self, effect: StatusEffect) -> bool {
         self.get_own_status(effect).is_some()

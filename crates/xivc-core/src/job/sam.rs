@@ -226,7 +226,7 @@ impl Job for SamJob {
             Fuga | Fuko => {
                 s.combos.kaeshi.reset();
                 consume_meikyo(p);
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
@@ -250,7 +250,7 @@ impl Job for SamJob {
                 } else {
                     false
                 };
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     p.damage(combo_pot(100, 120, combo), t, c.next());
                 }
@@ -267,7 +267,7 @@ impl Job for SamJob {
                 } else {
                     false
                 };
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     p.damage(combo_pot(100, 120, combo), t, c.next());
                 }
@@ -286,7 +286,7 @@ impl Job for SamJob {
             }
             Kyuten => {
                 s.kenki -= 25;
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     p.damage(120, t, c.next());
                 }
@@ -310,7 +310,7 @@ impl Job for SamJob {
             Guren => {
                 let (first, other) = need_target!(target_enemy(ActionTargetting::line(10)), p, aoe);
                 s.kenki -= 25;
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 p.damage(500, first, c.next());
                 for t in other {
                     p.damage(375, t, c.next());
@@ -337,7 +337,7 @@ impl Job for SamJob {
             }
             Shoha2 => {
                 s.meditation.clear();
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     p.damage(200, t, c.next());
                 }
@@ -348,7 +348,7 @@ impl Job for SamJob {
                 s.meditation += 1;
                 s.combos.kaeshi.set(KaeshiCombo::Namikiri);
                 consume_status(this, p, OGI_READY, 0);
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 p.damage_ch(860, first, c.next());
                 for t in other {
                     p.damage_ch(215, t, c.next());
@@ -366,7 +366,7 @@ impl Job for SamJob {
                 s.meditation += 1;
                 s.combos.kaeshi.set(KaeshiCombo::Goken);
                 s.sen.clear();
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
                     p.damage(300, t, c.next());
                 }
@@ -388,7 +388,7 @@ impl Job for SamJob {
             KaeshiGoken => {
                 s.meditation += 1;
                 s.combos.kaeshi.reset();
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
                     p.damage(300, t, c.next());
                 }
@@ -404,7 +404,7 @@ impl Job for SamJob {
                     need_target!(target_enemy(ActionTargetting::cone(8, 135)), p, aoe);
                 s.meditation += 1;
                 s.combos.kaeshi.reset();
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 p.damage_ch(860, first, c.next());
                 for t in other {
                     p.damage_ch(215, t, c.next());
@@ -480,7 +480,7 @@ const CIRCLE: ActionTargetting = ActionTargetting::circle(5);
     pub const name: &'static str
     /// Returns the cooldown of the skill in milliseconds.
     pub const cooldown: u32 = 0
-    /// Returns the number of charges a skill has, or `1`` if it is a single charge skill.
+    /// Returns the number of charges a skill has, or `1` if it is a single charge skill.
     pub const cd_charges: u8 = 1
     /// Returns the delay in milliseconds for the damage/statuses to be applied.
     pub const effect_delay: u32 = 0

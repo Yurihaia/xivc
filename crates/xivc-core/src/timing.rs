@@ -359,22 +359,27 @@ pub struct EventCascade {
 }
 
 impl EventCascade {
-    /// Creates a new cascade with the specified starting time and the
-    /// default (`133ms`) cascade amount.
+    /// The number of milliseconds in a base cascade tick.
+    /// 
+    /// Damage is usually `1` tick, while friendly buff
+    /// application is usually `0` or `3` ticks.
+    pub const TICK: u32 = 45;
+    /// Creates a new cascade with the specified starting time and
+    /// a cascade amount as a multiple of [`EventCascade::TICK`].
     ///
     /// # Examples
-    ///
+    /// 
     /// ```
     /// # use xivc_core::timing::EventCascade;
-    /// let mut cascade = EventCascade::new(250);
+    /// let mut cascade = EventCascade::new(250, 3);
     ///
     /// assert_eq!(cascade.next(), 250);
-    /// assert_eq!(cascade.next(), 383);
+    /// assert_eq!(cascade.next(), 385);
     /// ```
-    pub const fn new(start: u32) -> Self {
+    pub const fn new(start: u32, ticks: u32) -> Self {
         Self {
             time: start,
-            amount: 133,
+            amount: Self::TICK * ticks,
         }
     }
     /// Creates a new cascade with the specified starting time and

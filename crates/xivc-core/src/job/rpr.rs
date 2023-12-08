@@ -217,7 +217,7 @@ impl Job for RprJob {
                 event_sink.apply_status(ENHARPE, 1, this_id, dl);
             }
             SpinningScythe => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
@@ -242,7 +242,7 @@ impl Job for RprJob {
                 event_sink.damage(combo_pot(180, 500, combo), t, dl);
             }
             WhorlOfDeath => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     let dl = c.next();
                     event_sink.apply_or_extend_status(DEATHS_DESIGN, 1, 2, t, dl);
@@ -252,7 +252,7 @@ impl Job for RprJob {
             NightmareScythe => {
                 let combo = state.combos.main.check(MainCombo::Spinning);
                 state.combos.main.reset();
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
@@ -270,7 +270,7 @@ impl Job for RprJob {
                 event_sink.apply_status(SOUL_REAVER, 1, this_id, 0);
             }
             GrimSwathe => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
                     event_sink.damage(140, t, c.next());
                 }
@@ -283,7 +283,7 @@ impl Job for RprJob {
                 event_sink.damage(460, t, dl);
             }
             SoulScythe => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
@@ -310,14 +310,14 @@ impl Job for RprJob {
                 event_sink.apply_status(ENGIBBET, 1, this_id, 0);
             }
             Guillotine => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
                     event_sink.damage(200, t, c.next());
                 }
                 state.shroud += 10;
             }
             ArcaneCircle => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 3);
                 for t in src
                     .actors_for_action(Some(Faction::Party), ActionTargetting::circle(30))
                     .map(|a| a.id())
@@ -335,7 +335,7 @@ impl Job for RprJob {
             Gluttony => {
                 let (f, o) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
                 state.soul -= 50;
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(520, f, c.next());
                 for t in o {
                     event_sink.damage(390, t, c.next());
@@ -358,7 +358,7 @@ impl Job for RprJob {
                     .map(|v| v.stack)
                     .unwrap_or_default();
                 state.shroud += 50;
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(680 + 40 * stacks as u16, first, c.next());
                 for t in other {
                     // 60% less
@@ -368,7 +368,7 @@ impl Job for RprJob {
             }
             Communio => {
                 let (f, o) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(1100, f, c.next());
                 for t in o {
                     event_sink.damage(440, t, c.next());
@@ -423,7 +423,7 @@ impl Job for RprJob {
                 } else {
                     state.void_shroud += 1;
                 }
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
                     event_sink.damage(200, t, c.next());
                 }
@@ -431,7 +431,7 @@ impl Job for RprJob {
             HarvestMoon => {
                 let (f, o) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
                 consume_status(src, event_sink, SOULSOW, 0);
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(600, f, c.next());
                 for t in o {
                     event_sink.damage(300, t, c.next());
@@ -443,7 +443,7 @@ impl Job for RprJob {
                 event_sink.damage(240, t, dl);
             }
             LemuresScythe => {
-                let mut c = EventCascade::new(dl);
+                let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
                     event_sink.damage(100, t, c.next());
                 }
@@ -554,7 +554,7 @@ const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);
     pub const name: &'static str
     /// Returns the cooldown of the skill in milliseconds.
     pub const cooldown: u32 = 0
-    /// Returns the number of charges a skill has, or `1`` if it is a single charge skill.
+    /// Returns the number of charges a skill has, or `1` if it is a single charge skill.
     pub const cd_charges: u8 = 1
     /// Returns the delay in milliseconds for the damage/statuses to be applied.
     pub const effect_delay: u32 = 0
