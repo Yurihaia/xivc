@@ -1,9 +1,9 @@
 //! Interacting with Jobs.
-//! 
+//!
 //! This module contains all of the logic for every job in the game.
 //! The most important part is the [`check_cast`] and [`cast_snap`] functions
 //! on [`Job`]. These functions are how you execute various actions.
-//! 
+//!
 //! [`check_cast`]: Job::check_cast
 //! [`cast_snap`]: Job::cast_snap
 
@@ -134,12 +134,12 @@ pub trait Job {
 }
 
 /// A trait that all job states need to implement.
-/// 
+///
 /// While not strictly nescessary, it provides a uniform API
 /// to interact with.
 pub trait JobState: Clone + Debug + Default {
     /// Advances the state forward by a certain amount of time.
-    /// 
+    ///
     /// See TODO: Advance Functions for more information.
     fn advance(&mut self, time: u32);
 }
@@ -148,29 +148,29 @@ pub trait JobState: Clone + Debug + Default {
 /// A collection of timing information to be applied when an action is cast.
 pub struct CastInitInfo<C: 'static> {
     /// The GCD to apply.
-    /// 
+    ///
     /// This should be `0` if the action is not a GCD.
     pub gcd: u16,
     /// The cast lock to apply.
-    /// 
+    ///
     /// This serves a dual purpose of being the amount of time
     /// it takes to cast an action, as well as animation lock for
     /// instantly cast actions.
     pub lock: u16,
     /// The amount of time before the cast snapshots.
-    /// 
+    ///
     /// This should be `0` for instant cast actions,
     /// and almost always `lock - 60` for cast actions.
     pub snap: u16,
     // i'm like 99% sure there are no actions
     // that don't trigger more than 1 cd group.
     /// The cooldown for the action to apply.
-    /// 
+    ///
     /// The items in this tuple are:
     /// 1. The cooldown group to apply the cooldown to.
     /// 2. The cooldown of the action to be applied.
     /// 3. The maximum number of charges the action can hold.
-    /// 
+    ///
     /// Note that the charges is **not** the number of charges to consume.
     /// This value is part of the cooldown to apply.
     pub cd: Option<(C, u32, u8)>,

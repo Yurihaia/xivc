@@ -1,3 +1,5 @@
+//! Various enums for data used in the crate.
+
 use core::fmt::{self, Display};
 use macros::var_consts;
 
@@ -5,7 +7,7 @@ use crate::math::ActionStat;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[var_consts {
-    /// Returns the human readly name of the clan's base race.
+    /// Returns the human readable name of the clan's base race.
     pub const race_name: &'static str
     /// Returns the human readable name of the clan.
     pub const clan_name: &'static str
@@ -275,7 +277,7 @@ pub enum DamageType {
     #[magical]
     Magic,
     /// Unique damage.
-    /// 
+    ///
     /// This has also been known as "Darkness" damage.
     /// Often instances of damage that do a fixed amount will be this type.
     #[unique]

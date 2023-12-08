@@ -1,3 +1,16 @@
+//! The global state of an XIVC simulation.
+//!
+//! This module contains the proxy traits [`World`] an [`Actor`],
+//! which can be used to interact with the global state and actor state
+//! respectively.
+//!
+//! The [`ActorId`] is an opaque handle for an actor inside the world.
+//! It is expected that world implementations will not reuse [`ActorId`]s
+//! over the course of the simulation.
+//!
+//! Also of note is the [`status`] submodule. This module contains
+//! all of the logic for status effect handling.
+
 pub mod status;
 
 use crate::{job, timing::DurationInfo};

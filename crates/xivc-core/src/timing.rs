@@ -10,7 +10,7 @@ use crate::math::SpeedStat;
 
 /// A trait that can scale a [`ScaleTime`] based off of
 /// the stats of a player and the [`StatusEffect`]s affecting them.
-/// 
+///
 /// This will usually get acquired through [`Actor::duration_info`].
 ///
 /// [`StatusEffect`]: crate::world::status::StatusEffect
@@ -20,7 +20,7 @@ pub trait DurationInfo {
     ///
     /// The `lock` parameter is the animation lock if the action is an instant cast.<br>
     /// This function returns a tuple of `(lock, snapshot)`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::{ScaleTime, DurationInfo};
@@ -31,7 +31,7 @@ pub trait DurationInfo {
     /// let scaled_time = duration_info.get_duration(scale_time) as u16;
     /// // Get the lock and snapshot for scale_time as a cast
     /// let (lock, snapshot) = duration_info.get_cast(scale_time, 600);
-    /// 
+    ///
     /// // scale_time is a non-instant cast, so the lock is the cast time + 10ms
     /// assert_eq!(lock, scaled_time + 10);
     /// // scale_time is a non-instant cast, so the snapshot is 50ms before the cast ends
@@ -54,7 +54,7 @@ pub trait DurationInfo {
     /// Returns the extra animation delay for instant cast actions.
     fn extra_ani_lock(&self) -> u16;
     /// Returns the scaled duration of some [`ScaleTime`].
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::{ScaleTime, DurationInfo};
@@ -63,7 +63,7 @@ pub trait DurationInfo {
     /// let scaled_one = duration_info.get_duration(ScaleTime::skill(2500));
     /// // create a scaled time for a weaponskill with a recast of 5.00s
     /// let scaled_two = duration_info.get_duration(ScaleTime::skill(5000));
-    /// 
+    ///
     /// // .get_duration() will always scale uniformly
     /// assert!(scaled_one < scaled_two);
     /// # }
@@ -88,22 +88,22 @@ impl ActionCd {
         Self { cd: 0 }
     }
     /// Applies a cooldown to the cooldown group.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::ActionCd;
     /// // Create a new ActionCd.
     /// let mut action_cd = ActionCd::new();
-    /// 
+    ///
     /// // The cd and charges for the cooldown group.
     /// let cd = 15000;
     /// let charges = 2;
-    /// 
+    ///
     /// // Apply an instance of the cooldown to the ActionCd.
     /// action_cd.apply(cd, charges);
     /// // There are two charges, so one should be left.
     /// assert!(action_cd.available(cd, charges));
-    /// 
+    ///
     /// // Apply an instance of the cooldown to the ActionCd again.
     /// action_cd.apply(cd, charges);
     /// // Now there should be no charges left.
@@ -113,24 +113,24 @@ impl ActionCd {
         self.cd = (self.cd + cd).min(cd * charges as u32)
     }
     /// Returns `true` if an action in the cooldown group can be used.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::ActionCd;
     /// // Create a new ActionCd.
     /// let mut action_cd = ActionCd::new();
-    /// 
+    ///
     /// // The cd and charges for the cooldown group.
     /// let cd = 1000;
     /// let charges = 1;
-    /// 
+    ///
     /// // The ActionCd hasnt been put on cooldown yet.
     /// assert!(action_cd.available(cd, charges));
     /// // Apply a cooldown to it now.
     /// action_cd.apply(cd, charges);
     /// // The ActionCd is now on cooldown.
     /// assert!(!action_cd.available(cd, charges));
-    /// 
+    ///
     /// // Advance the ActionCd by 1s
     /// action_cd.advance(1000);
     /// // The ActionCd should be off cooldown again.
@@ -146,24 +146,24 @@ impl ActionCd {
         self.cd = self.cd.saturating_sub(time)
     }
     /// Returns the time until the cooldown group can be used.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::ActionCd;
     /// // Create a new ActionCd.
     /// let mut action_cd = ActionCd::new();
-    /// 
+    ///
     /// // The cd and charges for the cooldown group.
     /// let cd = 30000;
     /// let charges = 2;
-    /// 
+    ///
     /// // Use up both charges
     /// action_cd.apply(cd, charges);
     /// action_cd.apply(cd, charges);
-    /// 
+    ///
     /// // Advance the cooldown by 15s,
     /// action_cd.advance(15000);
-    /// 
+    ///
     /// // There should now be 15s left until the cd can be used again.
     /// assert_eq!(action_cd.cd_until(cd, charges), 15000);
     /// ```
@@ -333,7 +333,7 @@ macro_rules! job_cd_struct {
 /// A utility for effect cascading.
 ///
 /// In FFXIV, most effects "cascade" when they hit multiple targets,
-/// each target being hit 1/30th of a second after the last. This struct
+/// each target being hit some multiple of `45ms` after the last . This struct
 /// provides a simple interface to start a cascade from a specified delay.
 ///
 /// # Examples
@@ -345,7 +345,7 @@ macro_rules! job_cd_struct {
 /// # let src = world.actor(ActorId(0)).unwrap();
 /// # let targets = std::iter::empty(); // doc moment
 /// // Create a cascade starting at a delay of 600ms.
-/// let mut cascade = EventCascade::new(600);
+/// let mut cascade = EventCascade::new(600, 1);
 /// // Iterate over the targets of an action.
 /// for target in targets {
 ///     // Apply damage with the cascading delay to each target.
@@ -360,7 +360,7 @@ pub struct EventCascade {
 
 impl EventCascade {
     /// The number of milliseconds in a base cascade tick.
-    /// 
+    ///
     /// Damage is usually `1` tick, while friendly buff
     /// application is usually `0` or `3` ticks.
     pub const TICK: u32 = 45;
@@ -368,7 +368,7 @@ impl EventCascade {
     /// a cascade amount as a multiple of [`EventCascade::TICK`].
     ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// # use xivc_core::timing::EventCascade;
     /// let mut cascade = EventCascade::new(250, 3);
@@ -409,7 +409,7 @@ impl EventCascade {
     ///
     /// ```
     /// # use xivc_core::timing::EventCascade;
-    /// let mut cascade = EventCascade::new(500);
+    /// let mut cascade = EventCascade::new(500, 1);
     ///
     /// let mut last = cascade.next();
     /// for x in 0..20 {
@@ -436,12 +436,12 @@ pub struct ScaleTime {
 
 impl ScaleTime {
     /// Returns a [`ScaleTime`] with the specified parameters.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::ScaleTime;
     /// let scale_time = ScaleTime::new(15000, None, true);
-    /// 
+    ///
     /// assert_eq!(scale_time.duration(), 15000);
     /// assert_eq!(scale_time.stat(), None);
     /// assert_eq!(scale_time.haste(), true);

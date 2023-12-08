@@ -1,3 +1,29 @@
+//! The math that FFXIV uses.
+//!
+//! This module contains the [`XivMath`] struct, which is what you should
+//! use for any calculations you need to do. This struct contains
+//! a [player's stats], the [misc info] about them, their [weapon information],
+//! and other things like the extra animation lock.
+//!
+//! On [`XivMath`], the functions [`action_damage`], [`dot_damage_snapshot`],
+//! [`aa_damage`], and [`action_cast_length`] are the most important.
+//! These functions are the way to convert from potency/base action recast time
+//! into the value that has been modified by player stats and buffs. See their
+//! documentation for more information.
+//!
+//! An important aspect of how FFXIV does its math is that all calculations are
+//! done using integers. For this reason, many of the functions on [`XivMath`] will
+//! return a scaled integer.
+//! The scale will always be documented in the relevant function.
+//!
+//! [player's stats]: PlayerStats
+//! [misc info]: PlayerInfo
+//! [weapon information]: WeaponInfo
+//! [`action_damage`]: XivMath::action_damage
+//! [`dot_damage_snapshot`]: XivMath::dot_damage_snapshot
+//! [`aa_damage`]: XivMath::aa_damage
+//! [`action_cast_length`]: XivMath::action_cast_length
+
 pub mod data;
 use data::{JobField, LevelField};
 
@@ -96,7 +122,7 @@ pub struct WeaponInfo {
 /// Many of the helper functions will return their values as a scaled integer. Because of the way
 /// FFXIV does its math, greater accuracy has been found when not interacting with floating point
 /// numbers on the backend.
-/// 
+///
 /// [`action_damage`]: XivMath::action_damage
 /// [`dot_damage_snapshot`]: XivMath::dot_damage_snapshot
 /// [`aa_damage`]: XivMath::aa_damage
@@ -110,7 +136,7 @@ pub struct XivMath {
     /// The information of the player.
     pub info: PlayerInfo,
     /// Extra animation lock.
-    /// 
+    ///
     /// This is often going to be the ping to the servers plus
     /// some value accounting for FPS.
     pub ex_lock: u16,
@@ -156,7 +182,7 @@ pub enum HitTypeHandle {
 
 impl HitTypeHandle {
     /// Returns `true` if the handle is [`Force`]
-    /// 
+    ///
     /// [`Force`]: Self::Force
     pub const fn is_force(&self) -> bool {
         matches!(self, Self::Force)
@@ -385,7 +411,7 @@ impl XivMath {
             + self.weapon.wd as u64)
             * self.weapon.delay as u64 / 300
     }
-    
+
     /// Returns a copy of this struct but with stats updated by the
     /// specified [`Buffs`].
     pub fn with_stats(&self, buffs: &impl Buffs) -> Self {
@@ -513,7 +539,7 @@ impl XivMath {
 }
 
 /// The collection of [status effects] that interact with the game math.
-/// 
+///
 /// [status effects]: crate::world::status::StatusEffect
 pub trait Buffs {
     /// The combined damage multiplier.
@@ -526,12 +552,12 @@ pub trait Buffs {
     fn crit_chance(&self, base: u64) -> u64;
     /// The combined addition Direct Hit chance.
     fn dhit_chance(&self, base: u64) -> u64;
-    
+
     /// The combined effect on the player's stats.
     fn stats(&self, base: PlayerStats) -> PlayerStats;
     /// The combined haste effects.
     fn haste(&self, base: u64) -> u64;
-    
+
     /// The combined damage multiplier for damage which is type agnostic.
     fn basic_damage(&self, base: u64, stat: ActionStat) -> u64 {
         self.damage(DamageInstance::basic(base, stat)).dmg
@@ -553,10 +579,10 @@ pub struct EotSnapshot {
 
 impl EotSnapshot {
     /// Returns the resulting damage/healing for this EoT.
-    /// 
+    ///
     /// the params `crit` and `dhit` are the handling for the respective hit types. Note that
     /// healing can never direct hit, and no dots are auto-crit/dhits.
-    /// 
+    ///
     /// If this is a DoT effect, rand should be between `95000` and `105000`.<br>
     /// If this is a HoT effect, rand should be between `97000` and `103000`.
     pub fn eot_result(&self, crit: HitTypeHandle, dhit: HitTypeHandle, rand: u64) -> u64 {

@@ -1,10 +1,10 @@
 //! Utilities for interacting with datasheets.
-//! 
+//!
 //! This module contains functions for querying various
 //! precompiled CSV files related to the math the game does.
 //! It generally will not be helpful, and should instead
 //! be used through the main [`XivMath`] type
-//! 
+//!
 //! [`XivMath`]: super::XivMath
 
 use macros::embed_data;
@@ -63,7 +63,7 @@ pub enum ClanField {
 
 // Omega cursed function
 /// Returns the attack modifier for a job at a specific level.
-/// 
+///
 /// Currently, only level `90` is supported.
 pub const fn atk_mod(job: Job, level: u8) -> u64 {
     const NM_MOD: u64 = 195;

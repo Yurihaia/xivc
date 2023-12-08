@@ -1,17 +1,17 @@
 //! Status effect handling.
-//! 
+//!
 //! The term Status Effect encompasses both buffs and debuffs,
 //! as well as any "proc" type effects.
-//! 
+//!
 //! To define a status effect, you should use the [`status_effect!`] macro.
 //! Each status effect has a [`VTable`] that contains the [name] and [duration]
 //! of the effect, as well the functions used to modify values, such as [damage]
 //! or [crit chance].
-//! 
+//!
 //! A specific instant of a status effect on an actor is represented by [`StatusInstance`].
 //! This struct contains the [ID] of the actor who applied the status, a reference
 //! to the effect [`VTable`], and the remaining duration and stacks of the status.
-//! 
+//!
 //! [`VTable`]: StatusVTable
 //! [name]: StatusVTable::name
 //! [duration]: StatusVTable::duration
@@ -48,19 +48,19 @@ pub struct StatusInstance {
 
 impl StatusInstance {
     /// Creates a new status instance of an effect applied by some source actor.
-    /// 
+    ///
     /// The effect duration will be the duration specified by the effect [`VTable`]
     /// and the stacks will be set to `1`.
-    /// 
+    ///
     /// [`VTable`]: StatusVTable
     pub const fn new(source: ActorId, effect: StatusEffect) -> Self {
         Self::new_stack(source, effect, 1)
     }
     /// Creates a new status instance of an effect applied by some source actor.
-    /// 
+    ///
     /// The effect duration will be the duration specified by the effect [`VTable`]
     /// and the stacks will be set to the value passed in to the function.
-    /// 
+    ///
     /// [`VTable`]: StatusVTable
     pub const fn new_stack(source: ActorId, effect: StatusEffect, stack: u8) -> Self {
         Self {
@@ -75,7 +75,7 @@ impl StatusInstance {
         self.stack = 0;
     }
     /// Decreases the number of stacks of the status, down to a minimum of `0`.
-    /// 
+    ///
     /// If the number stacks reaches `0`, the status instance will
     /// be removed from the actor.
     pub fn sub_stacks(&mut self, stacks: u8) {
@@ -100,24 +100,24 @@ impl StatusInstance {
 
 #[derive(Copy, Clone)]
 /// A reference to a certain [`StatusVTable`].
-/// 
+///
 /// This is the struct you should use when storing a status
 /// effect somewhere. It implements various useful traits.
 /// [`Eq`] and [`Hash`] use the address of the VTable for
 /// their respective purposes, not the VTable itself.
-/// 
+///
 /// This struct auto-derefs to the inner VTable, so any values from the VTable
 /// can easily be accessed through this struct.
-/// 
+///
 /// [`Hash`]: hash::Hash
 pub struct StatusEffect(&'static StatusVTable);
 
 impl StatusEffect {
     /// Creates a new [`StatusEffect`] from a certain VTable.
-    /// 
+    ///
     /// This function will rarely be called, as its primary use
     /// is inside the [`status_effect!`] macro.
-    /// 
+    ///
     /// [`status_effect!`]: crate::status_effect
     pub const fn new(vtable: &'static StatusVTable) -> Self {
         Self(vtable)
@@ -153,12 +153,12 @@ impl fmt::Debug for StatusEffect {
 
 #[derive(Debug)]
 /// The VTable for some specific status effect.
-/// 
+///
 /// This struct should almost always be created with
 /// the [`status_effect!`] macro. In rare cases where you
 /// need to construct it yourself, it should always be
 /// behind a `const` or `static` item.
-/// 
+///
 /// [`status_effect!`]: crate::status_effect
 pub struct StatusVTable {
     /// The name of the status effect.
@@ -198,10 +198,10 @@ impl StatusVTable {
 // this can be a trait but statuseffect shouldn't be
 // because status effects always have the same receiver
 /// A trait describing a job status effect.
-/// 
+///
 /// These effects come from job traits or gauges, for example,
 /// Dark Knight's Darkside, Bard's Army's Paeon, etc.
-/// 
+///
 /// Note that unlike [`StatusEffect`], this uses normal
 /// trait objects.
 pub trait JobEffect: Debug {
@@ -229,7 +229,7 @@ pub struct StatusSnapshot<'a> {
     /// The status effects present on the source of the event.
     pub source: &'a [StatusInstance],
     /// The status effects present on the target of the event.
-    /// 
+    ///
     /// This may be empty if no meaningful target exists.
     pub target: &'a [StatusInstance],
     // this is a list of all of the "status effects" that come from
@@ -239,7 +239,7 @@ pub struct StatusSnapshot<'a> {
     // note that Main & Mend (things that say "base action damage")
     // do NOT apply here, they go in "traits" in the damage formula
     /// The job effects present on the source of the event.
-    /// 
+    ///
     /// This may be empty if the source has no job effects, or
     /// if the source is not a player.
     pub job: &'a [&'a dyn JobEffect],
@@ -331,13 +331,13 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 }
 
 /// A function that modifies a specific damage instance.
-/// 
+///
 /// This should almost always be multiplicative.
 pub type DamageModifierFn = fn(e: StatusInstance, damage: DamageInstance) -> DamageInstance;
 // Chance is a scaled by 1000 to get probability (every 1 is 0.1%)
 // For instance, Chain adds 100
 /// A function that modifies the probability of a critical/direct hit occuring.
-/// 
+///
 /// This should almost always be additive.
 pub type ProbabilityModifierFn = fn(e: StatusInstance, chance: u64) -> u64;
 // for potions and basically potions only?
@@ -350,17 +350,17 @@ pub type SpeedModifierFn = fn(e: StatusInstance) -> u64;
 
 #[macro_export]
 /// Creates a new [`StatusEffect`].
-/// 
+///
 /// This macro is the primary way to create a new status effect.
-/// 
+///
 /// # Examples
-/// 
+///
 /// An example of an invocation for this macro is
-/// 
+///
 /// ```
 /// # use xivc_core::world::status::StatusEffect;
 /// # use xivc_core::status_effect;
-/// 
+///
 /// // Status effects should always be inside `const` items.
 /// // The VTable will be stored in read-only memory and
 /// //  the reference will be able to be freely copied around.
@@ -526,7 +526,7 @@ impl<T> ValueModifier<T> {
 
 /// Consumes a status from an actor, returning `true`
 /// if the status was successfully consumed.
-/// 
+///
 /// The `time` parameter is the delay that the Status Remove event
 /// will be submitted at.
 pub fn consume_status<'w, A: Actor<'w>>(
@@ -544,7 +544,7 @@ pub fn consume_status<'w, A: Actor<'w>>(
 
 /// Consumes a stack of a status from an actor, returning `true`
 /// if the stack was successfully consumed.
-/// 
+///
 /// The `time` parameter is the delay that the Status Remove event
 /// will be submitted at.
 pub fn consume_status_stack<'w, A: Actor<'w>>(
@@ -627,7 +627,7 @@ impl StatusEvent {
         }
     }
     /// Applies a status effect or extends the duration if it already exists on a target actor.
-    /// 
+    ///
     /// The number of `stacks` will be added to the effect instance if it already exists.
     pub const fn apply_or_extend(
         status: StatusEffect,
@@ -650,7 +650,7 @@ impl StatusEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(missing_docs)]
 /// The kind of modification a status event will do.
-/// 
+///
 /// Look at [`StatusEffect`] for more details
 /// on what each `StatusEventKind` does.
 pub enum StatusEventKind {
@@ -724,7 +724,7 @@ pub trait StatusEventExt: EventProxy {
         )
     }
     /// Applies a status effect or extends the duration if it already exists on a target actor.
-    /// 
+    ///
     /// The number of `stacks` will be added to the effect instance if it already exists.
     fn apply_or_extend_status(
         &mut self,
