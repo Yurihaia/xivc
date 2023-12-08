@@ -239,6 +239,7 @@ impl Display for Job {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[allow(missing_docs)]
 /// Elements that damage can be.
 pub enum DamageElement {
     None,
@@ -261,31 +262,40 @@ pub enum DamageElement {
 }]
 /// The types that damage can be.
 pub enum DamageType {
-    // Slashing physical damage.
+    /// Slashing physical damage.
     #[physical]
     Slashing,
-    // Piercing physical damage.
+    /// Piercing physical damage.
     #[physical]
     Piercing,
-    // Blunt physical damage.
+    /// Blunt physical damage.
     #[physical]
     Blunt,
-    // Magical damage.
+    /// Magical damage.
     #[magical]
     Magic,
-    // Unique damage.
+    /// Unique damage.
+    /// 
+    /// This has also been known as "Darkness" damage.
+    /// Often instances of damage that do a fixed amount will be this type.
     #[unique]
     Unique,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// An instance of damage.
 pub struct DamageInstance {
+    /// The damage.
     pub dmg: u64,
+    /// The type of the damage.
     pub ty: DamageType,
+    /// The element of the damage.
     pub el: DamageElement,
 }
 
 impl DamageInstance {
+    /// Creates a basic damage instance from an amount of damage
+    /// and the attack power stat used for the damage.
     pub const fn basic(dmg: u64, stat: ActionStat) -> Self {
         Self {
             dmg,

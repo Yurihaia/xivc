@@ -6,10 +6,10 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    job::{Job, JobAction, JobState},
+    job::{Job, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
-    util::{actor_id, combo_pos_pot, combo_pot, ComboState, GaugeU8},
+    util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
         ActionTargetting, Actor, DamageEventExt, EventError, EventProxy, Faction, Positional,
@@ -19,42 +19,56 @@ use crate::{
 
 use super::CastInitInfo;
 
+/// The [`Job`] struct for Reaper.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RprJob;
 
+/// The status effect "Death's Design".
 pub const DEATHS_DESIGN: StatusEffect = status_effect!(
     "Death's Design" 30000 { damage { in = 110 / 100 } }
 );
+/// The status effect "Arcane Circle".
 pub const ARCANE_CIRCLE: StatusEffect = status_effect!(
     "Arcane Circle" 20000 { damage { out = 103 / 100 } }
 );
+/// The status effect "Circle of Sacrifice".
 pub const CIRCLE_SACRIFICE: StatusEffect = status_effect!("Circle of Sacrifice" 5000);
+/// The status effect "Bloodsown Sacrifice".
 pub const BLOODSOWN_SACRIFICE: StatusEffect = status_effect!("Bloodsown Sacrifice" 6000);
+/// The status effect "Immortal Sacrifice".
 pub const IMMORTAL_SACRIFICE: StatusEffect = status_effect!("Immortal Sacrifice" 30000);
+/// The status effect "Soul Reaver".
 pub const SOUL_REAVER: StatusEffect = status_effect!("Soul Reaver" 30000);
+/// The status effect "Soulsow".
 pub const SOULSOW: StatusEffect = status_effect!("Soulsow" permanent);
+/// The status effect "Enshroud".
 pub const ENSHROUD: StatusEffect = status_effect!("Enshroud" 30000);
+/// The status effect "Enhanced Harpe".
 pub const ENHARPE: StatusEffect = status_effect!("Enhanced Harpe" 20000);
+/// The status effect "Enhanced Gibbet".
 pub const ENGIBBET: StatusEffect = status_effect!("Enhanced Gibbet" 60000);
+/// The status effect "Enhanced Gallows".
 pub const ENGALLOWS: StatusEffect = status_effect!("Enhanced Gallows" 60000);
+/// The status effect "Enhanced Void Reaping".
 pub const ENVOID: StatusEffect = status_effect!("Enhanced Void Reaping" 30000);
+/// The status effect "Enhanced Cross Reaping".
 pub const ENCROSS: StatusEffect = status_effect!("Enhanced Cross Reaping" 30000);
 
 impl Job for RprJob {
     type Action = RprAction;
     type State = RprState;
-    type Error = RprError;
+    type CastError = RprError;
     type Event = ();
     type CdGroup = RprCdGroup;
 
     fn check_cast<'w, E: EventProxy, W: World>(
         action: Self::Action,
         state: &Self::State,
-        world: &'w W,
+        _: &'w W,
         src: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
-        let di = world.duration_info();
+        let di = src.duration_info();
 
         let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
         let (lock, snap) = di.get_cast(action.cast(), 600);
@@ -150,9 +164,8 @@ impl Job for RprJob {
         use RprAction::*;
 
         let target_enemy = |t: ActionTargetting| {
-            src.actors_for_action(t)
-                .filter(|t| t.faction() == Faction::Enemy)
-                .map(actor_id)
+            src.actors_for_action(Some(Faction::Enemy), t)
+                .map(|a| a.id())
         };
 
         let dl = action.effect_delay();
@@ -306,9 +319,8 @@ impl Job for RprJob {
             ArcaneCircle => {
                 let mut c = EventCascade::new(dl);
                 for t in src
-                    .actors_for_action(ActionTargetting::circle(30))
-                    .filter(|v| v.faction() == Faction::Friendly)
-                    .map(actor_id)
+                    .actors_for_action(Some(Faction::Party), ActionTargetting::circle(30))
+                    .map(|a| a.id())
                 {
                     let dl = c.next();
                     event_sink.apply_status(ARCANE_CIRCLE, 1, t, dl);
@@ -441,21 +453,34 @@ impl Job for RprJob {
     }
 }
 
+/// A custom cast error for Reaper actions.
 #[derive(Clone, Copy, Debug)]
 pub enum RprError {
+    /// Not enough Soul gauge.
     Soul(u8),
+    /// Not enough Shroud Gauge.
     Shroud(u8),
+    /// Not under the effect of Soulsow.
     Soulsow,
+    /// Not enough stacks of Lemure Shroud.
     Lemure(u8),
+    /// Not enough stacks of Void Shroud.
     Void(u8),
+    /// Not under the effect of Immortal Sacrifice.
     Sacrifice,
+    /// Under the effect of Bloodsown Circle.
     Bloodsown,
+    /// Not under the effect of Soul Reaver.
     SoulReaver,
+    /// Not under the effect of Enhanced Gibbet.
     UnvGibbet,
+    /// Not under the effect of Enhanced Gallows.
     UnvGallows,
+    /// Under the effect of Enshroud.
     Enshroud(RprAction),
 }
 impl RprError {
+    /// Submits the cast error into the [`EventProxy`].
     pub fn submit(self, p: &mut impl EventProxy) {
         p.error(self.into())
     }
@@ -534,6 +559,8 @@ const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);
     /// Returns the delay in milliseconds for the damage/statuses to be applied.
     pub const effect_delay: u32 = 0
 }]
+#[allow(missing_docs)] // no reason to document the variants.
+/// An action specific to the Reaper job.
 pub enum RprAction {
     #[skill]
     #[enshroud_invalid]
@@ -648,16 +675,21 @@ pub enum RprAction {
     LemuresScythe,
 }
 
-impl JobAction for RprAction {}
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
+/// The state of the Reaper job gauges, cooldowns, and combos.
 pub struct RprState {
+    /// The cooldowns for Reaper actions.
     pub cds: RprCds,
+    /// The combos for Reaper.
     pub combos: RprCombos,
+    /// The Soul gauge.
     pub soul: GaugeU8<100>,
+    /// The Shroud gauge.
     pub shroud: GaugeU8<100>,
+    /// The stacks of Lemure Shroud.
     pub lemure_shroud: GaugeU8<5>,
+    /// The stacks of Void Shroud.
     pub void_shroud: GaugeU8<5>,
 }
 
@@ -670,11 +702,16 @@ impl JobState for RprState {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
+/// The combos for Reaper.
 pub struct RprCombos {
+    /// The main combo.
+    ///
+    /// Includes the Infernal Slice combo as well as the Nightmare Scythe combo.
     pub main: ComboState<MainCombo>,
 }
 
 impl RprCombos {
+    /// Checks that the main combo prerequisite is met for a certain action.
     pub fn check_main_for(&self, action: RprAction) -> bool {
         let c = match action {
             RprAction::WaxingSlice => MainCombo::Slice,
@@ -685,6 +722,9 @@ impl RprCombos {
         self.main.check(c)
     }
 
+    /// Advances the combos forward by a certain amount of time.
+    ///
+    /// See TODO: Advance Functions for more information.
     pub fn advance(&mut self, time: u32) {
         self.main.advance(time);
     }
@@ -693,9 +733,13 @@ impl RprCombos {
 // lmfao
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// The possible states the main combo can be in.
 pub enum MainCombo {
+    /// Combo Action: Slice is met.
     Slice,
+    /// Combo Action: Waxing Slice is met.
     Waxing,
+    /// Combo Action: Spinning Scythe is met.
     Spinning,
 }
 
@@ -704,17 +748,26 @@ job_cd_struct! {
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
+    /// The active cooldowns for Reaper actions.
     pub RprCds
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]
+    /// The various cooldown groups a Reaper action can be part of.
     pub RprCdGroup
 
+    "Hell's Ingress/Egress"
     hells Hells: HellsIngress HellsEgress;
+    "Blood Stalk, Grim Swathe, and Unveiled Gibbet/Gallows"
     reaver Reaver: BloodStalk GrimSwathe UnveiledGibbet UnveiledGallows;
+    "Soul Slice/Scythe"
     soul Soul: SoulSlice SoulScythe;
+    "Arcane Circle"
     circle Circle: ArcaneCircle;
+    "Gluttony"
     gluttony Gluttony: Gluttony;
+    "Enshroud"
     enshroud Enshroud: Enshroud;
+    "Lemure's Slice/Scythe"
     lemures Lemures: LemuresSlice LemuresScythe;
 }

@@ -6,12 +6,10 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    job::{Job, JobAction, JobState},
-    job_cd_struct,
-    math::SpeedStat,
-    need_target, status_effect,
+    job::{Job, JobState},
+    job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
-    util::{actor_id, combo_pos_pot, combo_pot, ComboState, GaugeU8},
+    util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, consume_status_stack, StatusEffect, StatusEventExt},
         ActionTargetting, Actor, DamageEventExt, EventError, EventProxy, Faction, Positional,
@@ -23,34 +21,41 @@ use super::CastInitInfo;
 
 // so i can be lazy with associated constant derives
 #[derive(Copy, Clone, Debug, Default)]
+/// The [`Job`] struct for Samurai.
 pub struct SamJob;
 
+/// The status effect Fugetsu.
 pub const FUGETSU: StatusEffect = status_effect!(
     "Fugetsu" 40000 { damage { out = 113 / 100 } }
 );
+/// The status effect Fuka.
 pub const FUKA: StatusEffect = status_effect!(
     "Fuka" 40000 { haste { 100 - 13 } }
 );
+/// The status effect Ogi Namikiri Ready.
 pub const OGI_READY: StatusEffect = status_effect!("Ogi Namikiri Ready" 30000);
+/// The status effect Meikyo Shisui.
 pub const MEIKYO: StatusEffect = status_effect!("Meikyo Shisui" 15000);
+/// The status effect Enhanced Enpi.
 pub const ENENPI: StatusEffect = status_effect!("Enhanced Enpi" 15000);
+/// The DoT effect Higanbana.
 pub const HIGANBANA: StatusEffect = status_effect!("Higanbana" 60000);
 
 impl Job for SamJob {
     type Action = SamAction;
     type State = SamState;
-    type Error = SamError;
+    type CastError = SamError;
     type Event = ();
     type CdGroup = SamCdGroup;
 
     fn check_cast<'w, E: EventProxy, W: World>(
         action: Self::Action,
         state: &Self::State,
-        world: &'w W,
+        _: &'w W,
         src: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
-        let di = world.duration_info();
+        let di = src.duration_info();
 
         let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
         let (lock, snap) = di.get_cast(action.cast(), 600);
@@ -85,7 +90,14 @@ impl Job for SamJob {
             // really ugly if the if guard is in the match branch lol
             KaeshiHiganbana | KaeshiGoken | KaeshiSetsugekka | KaeshiNamikiri => {
                 if !state.combos.check_kaeshi_for(action) {
-                    SamError::Kaeshi(action).submit(event_sink)
+                    SamError::Kaeshi(match action {
+                        KaeshiHiganbana => Higanbana,
+                        KaeshiGoken => TenkaGoken,
+                        KaeshiSetsugekka => Midare,
+                        KaeshiNamikiri => Namikiri,
+                        _ => unreachable!(),
+                    })
+                    .submit(event_sink)
                 }
             }
             _ => (),
@@ -112,9 +124,8 @@ impl Job for SamJob {
     ) {
         use SamAction::*;
         let target_enemy = |t: ActionTargetting| {
-            this.actors_for_action(t)
-                .filter(|t| t.faction() == Faction::Enemy)
-                .map(actor_id)
+            this.actors_for_action(Some(Faction::Enemy), t)
+                .map(|a| a.id())
         };
 
         let consume_meikyo = |p: &mut P| consume_status_stack(this, p, MEIKYO, 0);
@@ -404,15 +415,23 @@ impl Job for SamJob {
 }
 
 #[derive(Clone, Copy, Debug)]
+/// A custom error for Samurai actions.
 pub enum SamError {
+    /// Not executed following the specified iaijutsu.
     Kaeshi(SamAction),
+    /// Not enough Kenki gauge.
     Kenki(u8),
+    /// Incorrect number of Sen for the iaijutsu.
     IaiSen(u8),
+    /// No Sen for Hagakure.
     HagaSen,
+    /// Not enough stacks of Meditation.
     Meditation,
+    /// Not under the effect Ogi Namikiri Ready.
     OgiRdy,
 }
 impl SamError {
+    /// Submits the cast error into the [`EventProxy`].
     pub fn submit(self, p: &mut impl EventProxy) {
         p.error(self.into())
     }
@@ -470,6 +489,8 @@ const CIRCLE: ActionTargetting = ActionTargetting::circle(5);
     /// Returns the number of sen needed to perform the iaijutsu.
     pub const sen_cost: u8?
 }]
+#[allow(missing_docs)] // no reason to document the variants.
+/// An action specific to the Reaper job.
 pub enum SamAction {
     #[skill]
     #[name = "Hakaze"]
@@ -598,21 +619,19 @@ pub enum SamAction {
     KaeshiNamikiri,
 }
 
-impl SamAction {
-    pub const fn cd_speed_stat(&self) -> Option<SpeedStat> {
-        None
-    }
-}
-
-impl JobAction for SamAction {}
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
+/// The state of the Samurai job gauges, cooldowns, and combos.
 pub struct SamState {
+    /// The cooldowns for Samurai actions.
     pub cds: SamCds,
+    /// The combos for Samurai.
     pub combos: SamCombos,
+    /// The Sen gauge.
     pub sen: Sen,
+    /// The stacks of Meditation.
     pub meditation: GaugeU8<3>,
+    /// The Kenki gauge.
     pub kenki: GaugeU8<100>,
 }
 
@@ -625,12 +644,18 @@ impl JobState for SamState {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
+/// The combos for Samurai.
 pub struct SamCombos {
+    /// The main combo.
+    ///
+    /// Includes the Kasha, Gekko, Yukikaze, Mangetsu, and Oka combos.
     pub main: ComboState<MainCombo>,
+    /// The combo for Tsubame-gaeshi.
     pub kaeshi: ComboState<KaeshiCombo>,
 }
 
 impl SamCombos {
+    /// Checks that the main combo prerequisite is met for a certain action.
     pub fn check_main_for(&self, action: SamAction) -> bool {
         let c = match action {
             SamAction::Jinpu | SamAction::Shifu | SamAction::Yukikaze => MainCombo::Hakaze,
@@ -642,6 +667,7 @@ impl SamCombos {
         self.main.check(c)
     }
 
+    /// Checks that the kaeshi combo prerequisite is met for a certain action.
     pub fn check_kaeshi_for(&self, action: SamAction) -> bool {
         let c = match action {
             SamAction::KaeshiHiganbana => KaeshiCombo::Higanbana,
@@ -653,6 +679,9 @@ impl SamCombos {
         self.kaeshi.check(c)
     }
 
+    /// Advances the combos forward by a certain amount of time.
+    ///
+    /// See TODO: Advance Functions for more information.
     pub fn advance(&mut self, time: u32) {
         self.main.advance(time);
         self.kaeshi.advance(time);
@@ -661,24 +690,35 @@ impl SamCombos {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The possible states the main combo can be in.
 pub enum MainCombo {
+    /// Combo Action: Hakaze is met.
     Hakaze,
+    /// Combo Action: Shifu is met.
     Shifu,
+    /// Combo Action: Jinpu is met.
     Jinpu,
+    /// Combo Action: Fuko is met.
     Fuko,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The possible states the Tsubame-gaeshi combo can be in.
 pub enum KaeshiCombo {
+    /// Able to cast Kaeshi: Higanbana.
     Higanbana,
+    /// Able to cast Kaeshi: Goken.
     Goken,
+    /// Able to cast Kaeshi: Setsugekka.
     Setsugekka,
+    /// Able to cast Kaeshi: Namikiri.
     Namikiri,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
+/// The Sen gauge.
 pub struct Sen {
     bits: u8,
 }
@@ -687,18 +727,23 @@ impl Sen {
     const GETSU: u8 = 1 << 1;
     const KA: u8 = 1 << 2;
 
+    /// Grants Setsu.
     pub fn grant_setsu(&mut self) {
         self.bits |= Self::SETSU
     }
+    /// Grants Getsu.
     pub fn grant_getsu(&mut self) {
         self.bits |= Self::GETSU
     }
+    /// Grants Ka.
     pub fn grant_ka(&mut self) {
         self.bits |= Self::KA
     }
+    /// Returns the number of Sen present.
     pub fn count(&self) -> u8 {
         self.bits.count_ones() as u8
     }
+    /// Clears the Sen gauge.
     pub fn clear(&mut self) {
         self.bits = 0;
     }
@@ -709,20 +754,32 @@ job_cd_struct! {
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
+    /// The active cooldowns for Samurai actions.
     pub SamCds
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]
+    /// The various cooldown groups a Samurai action can be part of.
     pub SamCdGroup
 
+    "Shinten"
     shinten Shinten: Shinten;
+    "Kyuten"
     kyuten Kyuten: Kyuten;
+    "Gyoten"
     gyoten Gyoten: Gyoten;
+    "Yaten"
     yaten Yaten: Yaten;
+    "Hagakure"
     hagakure Hagakure: Hagakure;
+    "Guren and Senei"
     senei Senei: Senei Guren;
+    "Ikishoten"
     ikishoten Ikishoten: Ikishoten;
+    "Meikyo Shisui"
     meikyo Meikyo: Meikyo;
+    "Shoha and Shoha II"
     shoha Shoha: Shoha Shoha2;
+    "Tsubame-gaeshi"
     tsubame Tsubame: KaeshiHiganbana KaeshiGoken KaeshiSetsugekka;
 }

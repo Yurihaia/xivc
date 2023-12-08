@@ -8,22 +8,36 @@ use crate::enums::{Clan, DamageInstance, Job};
 /// These values are all the same as the ones you would find in-game.
 pub struct PlayerStats {
     // Main stats
+    /// The Strength main stat.
     pub str: u16,
+    /// The Vitality main stat.
     pub vit: u16,
+    /// The Dexterity main stat.
     pub dex: u16,
+    /// The Intelligence main stat.
     pub int: u16,
+    /// The Mind main stat.
     pub mnd: u16,
     // Substats
+    /// The Determination substat.
     pub det: u16,
+    /// The Critical Hit substat.
     pub crt: u16,
+    /// The Direct Hit substat.
     pub dh: u16,
+    /// The Skill Speed substat.
     pub sks: u16,
+    /// The Spell Speed substat.
     pub sps: u16,
+    /// The Tenacity substat.
     pub ten: u16,
+    /// The Piety substat.
     pub pie: u16,
 }
 
 impl PlayerStats {
+    /// Returns a set of player stats with all of the values
+    /// set to the defaults for some specific level.
     pub const fn default(lvl: u8) -> Self {
         let main = data::level(lvl, LevelField::MAIN) as u16;
         let sub = data::level(lvl, LevelField::SUB) as u16;
@@ -74,19 +88,31 @@ pub struct WeaponInfo {
 /// # Usage
 ///
 /// Most of the high level interface with this struct comes through one of the following
-/// * [`prebuff_action_damage`](Self::prebuff_action_damage) for direct damage calculation
-/// * [`prebuff_dot_damage`](Self::prebuff_dot_damage) for damage over time (DoT) damage calculation
-/// * [`prebuff_aa_damage`](Self::prebuff_aa_damage) for auto attack damage calculation
-/// * [`action_cast_length`](Self::action_cast_length) for GCD and cast time calculation
+/// * [`action_damage`] for direct damage calculation
+/// * [`dot_damage_snapshot`] for damage over time (DoT) damage calculation
+/// * [`aa_damage`] for auto attack damage calculation
+/// * [`action_cast_length`] for GCD and cast time calculation
 ///
 /// Many of the helper functions will return their values as a scaled integer. Because of the way
 /// FFXIV does its math, greater accuracy has been found when not interacting with floating point
 /// numbers on the backend.
+/// 
+/// [`action_damage`]: XivMath::action_damage
+/// [`dot_damage_snapshot`]: XivMath::dot_damage_snapshot
+/// [`aa_damage`]: XivMath::aa_damage
+/// [`action_cast_length`]: XivMath::action_cast_length
 #[derive(Copy, Clone, Debug)]
 pub struct XivMath {
+    /// The stats of the player.
     pub stats: PlayerStats,
+    /// The weapon being used by the player.
     pub weapon: WeaponInfo,
+    /// The information of the player.
     pub info: PlayerInfo,
+    /// Extra animation lock.
+    /// 
+    /// This is often going to be the ping to the servers plus
+    /// some value accounting for FPS.
     pub ex_lock: u16,
 }
 
@@ -129,6 +155,9 @@ pub enum HitTypeHandle {
 }
 
 impl HitTypeHandle {
+    /// Returns `true` if the handle is [`Force`]
+    /// 
+    /// [`Force`]: Self::Force
     pub const fn is_force(&self) -> bool {
         matches!(self, Self::Force)
     }
@@ -356,7 +385,9 @@ impl XivMath {
             + self.weapon.wd as u64)
             * self.weapon.delay as u64 / 300
     }
-
+    
+    /// Returns a copy of this struct but with stats updated by the
+    /// specified [`Buffs`].
     pub fn with_stats(&self, buffs: &impl Buffs) -> Self {
         Self {
             stats: buffs.stats(self.stats),
@@ -481,33 +512,54 @@ impl XivMath {
     }
 }
 
+/// The collection of [status effects] that interact with the game math.
+/// 
+/// [status effects]: crate::world::status::StatusEffect
 pub trait Buffs {
+    /// The combined damage multiplier.
     fn damage(&self, base: DamageInstance) -> DamageInstance;
 
     // these should always be additive
     // some handling depends on it, and there is no way to test
     // the correct way they should be handled if they aren't multiplicative
+    /// The combined additional Critical Hit chance.
     fn crit_chance(&self, base: u64) -> u64;
+    /// The combined addition Direct Hit chance.
     fn dhit_chance(&self, base: u64) -> u64;
-
+    
+    /// The combined effect on the player's stats.
     fn stats(&self, base: PlayerStats) -> PlayerStats;
+    /// The combined haste effects.
     fn haste(&self, base: u64) -> u64;
-
+    
+    /// The combined damage multiplier for damage which is type agnostic.
     fn basic_damage(&self, base: u64, stat: ActionStat) -> u64 {
         self.damage(DamageInstance::basic(base, stat)).dmg
     }
 }
 
 #[derive(Copy, Clone, Debug)]
+/// A snapshot for some Effect-over-Time status.
 pub struct EotSnapshot {
+    /// The base damage before randomization for the status.
     pub base: u64,
+    /// The critical hit damage for the status.
     pub crit_damage: u16,
+    /// The critical hit chance for the status.
     pub crit_chance: u16,
+    /// The direct hit chance for the status.
     pub dhit_chance: u16,
 }
 
 impl EotSnapshot {
-    pub fn dot_damage(&self, crit: HitTypeHandle, dhit: HitTypeHandle, rand: u64) -> u64 {
+    /// Returns the resulting damage/healing for this EoT.
+    /// 
+    /// the params `crit` and `dhit` are the handling for the respective hit types. Note that
+    /// healing can never direct hit, and no dots are auto-crit/dhits.
+    /// 
+    /// If this is a DoT effect, rand should be between `95000` and `105000`.<br>
+    /// If this is a HoT effect, rand should be between `97000` and `103000`.
+    pub fn eot_result(&self, crit: HitTypeHandle, dhit: HitTypeHandle, rand: u64) -> u64 {
         self.base * rand / 10000 * self.crt_mod(crit) / 1000000 * self.dh_mod(dhit) / 1000000
     }
 

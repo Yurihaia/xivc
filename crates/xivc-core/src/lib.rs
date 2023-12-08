@@ -1,4 +1,5 @@
 #![cfg_attr(not(test), no_std)]
+#![warn(missing_docs)]
 
 pub mod enums;
 pub mod job;
