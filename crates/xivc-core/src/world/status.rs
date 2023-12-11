@@ -27,7 +27,7 @@ use core::{
 };
 
 use crate::{
-    enums::DamageInstance,
+    enums::{DamageElement, DamageInstance, DamageType},
     math::{Buffs, PlayerStats},
 };
 
@@ -243,6 +243,22 @@ pub struct StatusSnapshot<'a> {
     /// This may be empty if the source has no job effects, or
     /// if the source is not a player.
     pub job: &'a [&'a dyn JobEffect],
+}
+
+impl StatusSnapshot<'static> {
+    /// Creates an empty status snapshot.
+    /// 
+    /// This is often useful when interactive with the [`math`] module
+    /// manually.
+    /// 
+    /// [`math`]: crate::math
+    pub const fn empty() -> Self {
+        Self {
+            source: &[],
+            target: &[],
+            job: &[],
+        }
+    }
 }
 
 impl<'a> Buffs for StatusSnapshot<'a> {
@@ -586,15 +602,19 @@ impl StatusEvent {
         }
     }
     /// Applies a DoT status effect with a certain number of stacks on to a target actor.
-    pub const fn apply_dot(
+    pub const fn apply_dot( // what an awful function signature
         status: StatusEffect,
         potency: u16,
+        damage_type: DamageType,
+        element: DamageElement,
         stacks: u8,
         target: ActorId,
     ) -> Self {
         Self {
             kind: StatusEventKind::ApplyDot {
                 duration: status.0.duration,
+                damage_type,
+                element,
                 potency,
                 stacks,
             },
@@ -661,6 +681,8 @@ pub enum StatusEventKind {
     ApplyDot {
         duration: u32,
         potency: u16,
+        element: DamageElement,
+        damage_type: DamageType,
         stacks: u8,
     },
     Remove,
@@ -689,12 +711,14 @@ pub trait StatusEventExt: EventProxy {
         &mut self,
         status: StatusEffect,
         potency: u16,
+        damage_type: DamageType,
+        element: DamageElement,
         stacks: u8,
         target: ActorId,
         time: u32,
     ) {
         self.event(
-            StatusEvent::apply_dot(status, potency, stacks, target).into(),
+            StatusEvent::apply_dot(status, potency, damage_type, element, stacks, target).into(),
             time,
         )
     }

@@ -240,7 +240,7 @@ impl Display for Job {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_docs)]
 /// Elements that damage can be.
 pub enum DamageElement {
@@ -253,7 +253,7 @@ pub enum DamageElement {
     Lightning,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[var_consts {
     /// Returns `true` if the damage type is physical.
     pub const physical
@@ -275,7 +275,7 @@ pub enum DamageType {
     Blunt,
     /// Magical damage.
     #[magical]
-    Magic,
+    Magical,
     /// Unique damage.
     ///
     /// This has also been known as "Darkness" damage.
@@ -284,7 +284,7 @@ pub enum DamageType {
     Unique,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// An instance of damage.
 pub struct DamageInstance {
     /// The damage.
@@ -303,7 +303,7 @@ impl DamageInstance {
             dmg,
             el: DamageElement::None,
             ty: match stat {
-                ActionStat::AttackMagic => DamageType::Magic,
+                ActionStat::AttackMagic => DamageType::Magical,
                 ActionStat::AttackPower => DamageType::Slashing,
                 ActionStat::HealingMagic => DamageType::Unique,
             },

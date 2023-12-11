@@ -13,7 +13,11 @@
 
 pub mod status;
 
-use crate::{job, timing::DurationInfo};
+use crate::{
+    enums::{DamageElement, DamageType},
+    job,
+    timing::DurationInfo,
+};
 
 use self::status::{StatusEffect, StatusEvent, StatusInstance};
 
@@ -168,8 +172,12 @@ pub enum Event {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A damage application event.
 pub struct DamageEvent {
-    /// The potency of the damage.
+    /// The potency.
     pub potency: u16,
+    /// The element of the damage.
+    pub element: DamageElement,
+    /// The damage type.
+    pub damage_type: DamageType,
     /// Whether the damage automatically critical hits.
     pub force_ch: bool,
     /// Whether the damage automatically direct hits.
@@ -178,44 +186,160 @@ pub struct DamageEvent {
     pub target: ActorId,
 }
 impl DamageEvent {
-    /// Deals damage with a certain `potency` to the specified `target`.
+    /// Creates a new damage event.
+    /// 
+    /// The default damage type is [`Unique`], and the default element is [`None`][elnone].
+    /// Every single job action will want to set one of [`slashing`], [`piercing`], [`blunt`],
+    /// or [`magical`].
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageElement, DamageType};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(100, actor);
+    /// 
+    /// assert_eq!(event.element, DamageElement::None);
+    /// assert_eq!(event.damage_type, DamageType::Unique);
+    /// assert_eq!(event.force_ch, false);
+    /// assert_eq!(event.force_dh, false);
+    /// ```
+    /// 
+    /// [`Unique`]: DamageType::Unique
+    /// [elnone]: DamageElement::None
+    /// [`slashing`]: DamageEvent::slashing
+    /// [`piercing`]: DamageEvent::piercing
+    /// [`blunt`]: DamageEvent::blunt
+    /// [`magical`]: DamageEvent::magical
     pub const fn new(potency: u16, target: ActorId) -> Self {
         Self {
             potency,
+            damage_type: DamageType::Unique,
+            element: DamageElement::None,
             force_ch: false,
             force_dh: false,
             target,
         }
     }
-    /// Deals damage that will always critical hit with a certain `potency`
-    /// to the specified `target`.
-    pub const fn new_ch(potency: u16, target: ActorId) -> Self {
-        Self {
-            potency,
-            force_ch: true,
-            force_dh: false,
-            target,
-        }
+    /// Sets the damage type of this event to physical slashing damage.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageType};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(300, actor).slashing();
+    /// 
+    /// assert_eq!(event.damage_type, DamageType::Slashing);
+    /// ```
+    pub const fn slashing(mut self) -> Self {
+        self.damage_type = DamageType::Slashing;
+        self
     }
-    /// Deals damage that will always critical & direct hit with a certain `potency`
-    /// to the specified `target`.
-    pub const fn new_cdh(potency: u16, target: ActorId) -> Self {
-        Self {
-            potency,
-            force_ch: true,
-            force_dh: true,
-            target,
-        }
+    /// Sets the damage type of this event to physical piercing damage.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageType};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(520, actor).piercing();
+    /// 
+    /// assert_eq!(event.damage_type, DamageType::Piercing);
+    /// ```
+    pub const fn piercing(mut self) -> Self {
+        self.damage_type = DamageType::Piercing;
+        self
     }
-    /// Deals damage that will always direct hit with a certain `potency`
-    /// to the specified `target`.
-    pub const fn new_dh(potency: u16, target: ActorId) -> Self {
-        Self {
-            potency,
-            force_ch: false,
-            force_dh: true,
-            target,
-        }
+    /// Sets the damage type of this event to physical blunt damage.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageType};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(150, actor).blunt();
+    /// 
+    /// assert_eq!(event.damage_type, DamageType::Blunt);
+    /// ```
+    pub const fn blunt(mut self) -> Self {
+        self.damage_type = DamageType::Blunt;
+        self
+    }
+    /// Sets the damage type of this event to magical damage.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageType};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(200, actor).magical();
+    /// 
+    /// assert_eq!(event.damage_type, DamageType::Magical);
+    /// ```
+    pub const fn magical(mut self) -> Self {
+        self.damage_type = DamageType::Magical;
+        self
+    }
+    /// Sets the damage type of this event to unique damage.
+    /// 
+    /// This is not strictly needed as the default damage type is unique damage.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageType};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(500, actor).unique();
+    /// 
+    /// assert_eq!(event.damage_type, DamageType::Unique);
+    /// ```
+    pub const fn unique(mut self) -> Self {
+        self.damage_type = DamageType::Unique;
+        self
+    }
+    /// Sets the damage element of this event to the specified element.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// # use xivc_core::enums::{DamageElement};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(300, actor).element(DamageElement::Fire);
+    /// 
+    /// assert_eq!(event.element, DamageElement::Fire);
+    /// ```
+    pub const fn element(mut self, element: DamageElement) -> Self {
+        self.element = element;
+        self
+    }
+    /// Forces this event to critical hit.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(1100, actor).force_crit();
+    /// 
+    /// assert_eq!(event.force_ch, true);
+    /// ```
+    pub const fn force_crit(mut self) -> Self {
+        self.force_ch = true;
+        self
+    }
+    /// Forces this event to direct hit.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::world::{ActorId, DamageEvent};
+    /// let actor = ActorId(0);
+    /// let event = DamageEvent::new(620, actor).force_dhit();
+    /// 
+    /// assert_eq!(event.force_dh, true);
+    /// ```
+    pub const fn force_dhit(mut self) -> Self {
+        self.force_dh = true;
+        self
     }
 }
 impl From<DamageEvent> for Event {
@@ -226,24 +350,9 @@ impl From<DamageEvent> for Event {
 
 /// A helper trait for easily submitting damage events on to an event proxy.
 pub trait DamageEventExt: EventProxy {
-    /// Deals damage with a certain `potency` to the specified `target` after a delay.
-    fn damage(&mut self, potency: u16, target: ActorId, delay: u32) {
-        self.event(DamageEvent::new(potency, target).into(), delay)
-    }
-    /// Deals damage that will always critical hit with a certain `potency`
-    /// to the specified `target` after a delay.
-    fn damage_ch(&mut self, potency: u16, target: ActorId, delay: u32) {
-        self.event(DamageEvent::new_ch(potency, target).into(), delay)
-    }
-    /// Deals damage that will always direct hit with a certain `potency`
-    /// to the specified `target` after a delay.
-    fn damage_dh(&mut self, potency: u16, target: ActorId, delay: u32) {
-        self.event(DamageEvent::new_dh(potency, target).into(), delay)
-    }
-    /// Deals damage that will always critical & direct hit with a certain `potency`
-    /// to the specified `target` after a delay.
-    fn damage_cdh(&mut self, potency: u16, target: ActorId, delay: u32) {
-        self.event(DamageEvent::new_cdh(potency, target).into(), delay)
+    /// Deals damage to the target after the specified delay.
+    fn damage(&mut self, event: DamageEvent, delay: u32) {
+        self.event(event.into(), delay)
     }
 }
 impl<E: EventProxy> DamageEventExt for E {}

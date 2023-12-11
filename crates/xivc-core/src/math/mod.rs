@@ -243,7 +243,7 @@ impl XivMath {
 
     /// The crit multiplied based on the handling.  
     /// Output is scaled by `10000000` to allow for greater accuracy for [`CDHHandle::Avg`].
-    fn crit_mod(&self, handle: HitTypeHandle, buffs: &impl Buffs) -> u64 {
+    pub fn crit_mod(&self, handle: HitTypeHandle, buffs: &impl Buffs) -> u64 {
         match handle {
             // damn these look similar
             HitTypeHandle::Force => {
@@ -275,7 +275,7 @@ impl XivMath {
 
     /// The direct hit multiplier based on the handling.  
     /// Output is scaled by `1000000` to allow for greater accuracy for [`CDHHandle::Avg`].
-    fn dhit_mod(&self, handle: HitTypeHandle, buffs: &impl Buffs) -> u64 {
+    pub fn dhit_mod(&self, handle: HitTypeHandle, buffs: &impl Buffs) -> u64 {
         match handle {
             HitTypeHandle::Force => 1250 * (1000 + 250 * buffs.dhit_chance(0) / 1000),
             HitTypeHandle::Avg => 1000000 + 250 * buffs.dhit_chance(self.dhit_chance()),

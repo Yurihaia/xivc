@@ -323,6 +323,7 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 /// #     ActionTargetting,
 /// #     Faction,
 /// #     DamageEventExt,
+/// #     DamageEvent,
 /// #     Actor,
 /// # };
 /// # use xivc_core::timing::{EventCascade};
@@ -338,13 +339,13 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 /// // ...
 /// let (first, other) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
 /// let mut cascade = EventCascade::new(600, 1);
-/// event_sink.damage(1000, first, cascade.next());
+/// event_sink.damage(DamageEvent::new(1000, first).slashing(), cascade.next());
 /// for target in other {
-///     event_sink.damage(500, target, cascade.next());
+///     event_sink.damage(DamageEvent::new(500, target).slashing(), cascade.next());
 /// }
 /// // ...
 /// let target = need_target!(target_enemy(MELEE).next(), event_sink);
-/// event_sink.damage(350, target, 400);
+/// event_sink.damage(DamageEvent::new(350, target).slashing(), 400);
 /// # }
 /// ```
 ///
