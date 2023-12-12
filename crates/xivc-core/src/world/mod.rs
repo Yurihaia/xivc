@@ -13,11 +13,12 @@
 
 pub mod status;
 
-use crate::{
-    enums::{DamageElement, DamageType},
-    job,
-    timing::DurationInfo,
-};
+#[cfg(feature = "alloc")]
+pub mod queue;
+
+use rand_core::RngCore;
+
+use crate::{enums::DamageInstance, job, math::EotSnapshot, timing::DurationInfo};
 
 use self::status::{StatusEffect, StatusEvent, StatusInstance};
 
@@ -65,6 +66,12 @@ pub trait Actor<'w>: 'w {
     fn id(&self) -> ActorId;
     /// Returns the [`World`] the actor is part of.
     fn world(&self) -> &'w Self::World;
+    /// Returns the calculated damage of an attack.
+    fn attack_damage(&self, damage: DamageInstance, target: ActorId) -> u64;
+    /// Returns the snapshot for a damage over time effect.
+    fn dot_damage_snapshot(&self, damage: DamageInstance, target: ActorId) -> EotSnapshot;
+    /// Returns the calculated damage for an auto attack.
+    fn auto_damage(&self, target: ActorId) -> u64;
 
     /// Returns an iterator that contains the
     /// [status effects] present on the actor.
@@ -141,7 +148,46 @@ pub trait EventProxy {
     /// Submits an error into the event proxy.
     fn error(&mut self, error: EventError);
     /// Submits an event into the event proxy to be executed after a specified delay.
+    /// 
+    /// <div class="warning" id="orderwarning">
+    /// 
+    /// The order in which events with the same `delay` will be executed is the
+    /// opposite of the order they were submitted in. You must be careful if the effect
+    /// of an event depends on other events.
+    /// Consider using [`events_ordered`] in this situation
+    /// to make the ordering of events explicit.<br><br>
+    /// However, this ordering may be useful. For example, the [`Job::event`] function can
+    /// submit events with a delay of `0`, and those events will be guaranteed to be executed
+    /// before any events currently awaiting execution.
+    /// 
+    /// </div>
+    /// 
+    /// [`events_ordered`]: EventProxy::events_ordered
+    /// [`Job::event`]: crate::job::Job::event
     fn event(&mut self, event: Event, delay: u32);
+    /// Submits a sequence of events to be executed in order.
+    /// 
+    /// Because of the [warning] in [`event`], the default implementation
+    /// is to insert these events in the reverse order, hence the [`DoubleEndedIterator`]
+    /// bound. However, note that the ordering between multiple calls to this function
+    /// will result in the latter call's events being executed first.
+    /// 
+    /// [warning]: EventProxy#orderwarning
+    /// [`event`]: EventProxy::event
+    fn events_ordered<I>(&mut self, events: I, delay: u32)
+    where
+        I: IntoIterator<Item = Event>,
+        I::IntoIter: DoubleEndedIterator,
+    {
+        for event in events.into_iter().rev() {
+            self.event(event, delay);
+        }
+    }
+    /// Returns an RNG for use in event processing.
+    /// 
+    /// This RNG may return completely fabricated results, and as such
+    /// the output should not be relied upon to have any specific property.
+    fn rng(&mut self) -> &mut impl RngCore;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -172,174 +218,15 @@ pub enum Event {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A damage application event.
 pub struct DamageEvent {
-    /// The potency.
-    pub potency: u16,
-    /// The element of the damage.
-    pub element: DamageElement,
-    /// The damage type.
-    pub damage_type: DamageType,
-    /// Whether the damage automatically critical hits.
-    pub force_ch: bool,
-    /// Whether the damage automatically direct hits.
-    pub force_dh: bool,
+    /// The damage of the event.
+    pub damage: u64,
     /// The target receiving the damage.
     pub target: ActorId,
 }
 impl DamageEvent {
     /// Creates a new damage event.
-    /// 
-    /// The default damage type is [`Unique`], and the default element is [`None`][elnone].
-    /// Every single job action will want to set one of [`slashing`], [`piercing`], [`blunt`],
-    /// or [`magical`].
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageElement, DamageType};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(100, actor);
-    /// 
-    /// assert_eq!(event.element, DamageElement::None);
-    /// assert_eq!(event.damage_type, DamageType::Unique);
-    /// assert_eq!(event.force_ch, false);
-    /// assert_eq!(event.force_dh, false);
-    /// ```
-    /// 
-    /// [`Unique`]: DamageType::Unique
-    /// [elnone]: DamageElement::None
-    /// [`slashing`]: DamageEvent::slashing
-    /// [`piercing`]: DamageEvent::piercing
-    /// [`blunt`]: DamageEvent::blunt
-    /// [`magical`]: DamageEvent::magical
-    pub const fn new(potency: u16, target: ActorId) -> Self {
-        Self {
-            potency,
-            damage_type: DamageType::Unique,
-            element: DamageElement::None,
-            force_ch: false,
-            force_dh: false,
-            target,
-        }
-    }
-    /// Sets the damage type of this event to physical slashing damage.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageType};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(300, actor).slashing();
-    /// 
-    /// assert_eq!(event.damage_type, DamageType::Slashing);
-    /// ```
-    pub const fn slashing(mut self) -> Self {
-        self.damage_type = DamageType::Slashing;
-        self
-    }
-    /// Sets the damage type of this event to physical piercing damage.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageType};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(520, actor).piercing();
-    /// 
-    /// assert_eq!(event.damage_type, DamageType::Piercing);
-    /// ```
-    pub const fn piercing(mut self) -> Self {
-        self.damage_type = DamageType::Piercing;
-        self
-    }
-    /// Sets the damage type of this event to physical blunt damage.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageType};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(150, actor).blunt();
-    /// 
-    /// assert_eq!(event.damage_type, DamageType::Blunt);
-    /// ```
-    pub const fn blunt(mut self) -> Self {
-        self.damage_type = DamageType::Blunt;
-        self
-    }
-    /// Sets the damage type of this event to magical damage.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageType};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(200, actor).magical();
-    /// 
-    /// assert_eq!(event.damage_type, DamageType::Magical);
-    /// ```
-    pub const fn magical(mut self) -> Self {
-        self.damage_type = DamageType::Magical;
-        self
-    }
-    /// Sets the damage type of this event to unique damage.
-    /// 
-    /// This is not strictly needed as the default damage type is unique damage.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageType};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(500, actor).unique();
-    /// 
-    /// assert_eq!(event.damage_type, DamageType::Unique);
-    /// ```
-    pub const fn unique(mut self) -> Self {
-        self.damage_type = DamageType::Unique;
-        self
-    }
-    /// Sets the damage element of this event to the specified element.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// # use xivc_core::enums::{DamageElement};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(300, actor).element(DamageElement::Fire);
-    /// 
-    /// assert_eq!(event.element, DamageElement::Fire);
-    /// ```
-    pub const fn element(mut self, element: DamageElement) -> Self {
-        self.element = element;
-        self
-    }
-    /// Forces this event to critical hit.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(1100, actor).force_crit();
-    /// 
-    /// assert_eq!(event.force_ch, true);
-    /// ```
-    pub const fn force_crit(mut self) -> Self {
-        self.force_ch = true;
-        self
-    }
-    /// Forces this event to direct hit.
-    /// 
-    /// # Examples
-    /// ```
-    /// # use xivc_core::world::{ActorId, DamageEvent};
-    /// let actor = ActorId(0);
-    /// let event = DamageEvent::new(620, actor).force_dhit();
-    /// 
-    /// assert_eq!(event.force_dh, true);
-    /// ```
-    pub const fn force_dhit(mut self) -> Self {
-        self.force_dh = true;
-        self
+    pub const fn new(damage: u64, target: ActorId) -> Self {
+        Self { damage, target }
     }
 }
 impl From<DamageEvent> for Event {
@@ -351,8 +238,15 @@ impl From<DamageEvent> for Event {
 /// A helper trait for easily submitting damage events on to an event proxy.
 pub trait DamageEventExt: EventProxy {
     /// Deals damage to the target after the specified delay.
-    fn damage(&mut self, event: DamageEvent, delay: u32) {
-        self.event(event.into(), delay)
+    fn damage<'a>(
+        &mut self,
+        actor: &impl Actor<'a>,
+        damage: DamageInstance,
+        target: ActorId,
+        delay: u32,
+    ) {
+        let damage = actor.attack_damage(damage, target);
+        self.event(DamageEvent::new(damage, target).into(), delay)
     }
 }
 impl<E: EventProxy> DamageEventExt for E {}

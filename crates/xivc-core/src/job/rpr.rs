@@ -6,13 +6,14 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    enums::DamageInstance,
     job::{Job, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
-        ActionTargetting, Actor, DamageEvent, DamageEventExt, EventError, EventProxy, Faction,
+        ActionTargetting, Actor, DamageEventExt, Event, EventError, EventProxy, Faction,
         Positional, World,
     },
 };
@@ -158,19 +159,19 @@ impl Job for RprJob {
         action: Self::Action,
         state: &mut Self::State,
         _: &'w W,
-        src: &'w W::Actor<'w>,
+        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) {
         use RprAction::*;
 
         let target_enemy = |t: ActionTargetting| {
-            src.actors_for_action(Some(Faction::Enemy), t)
+            this.actors_for_action(Some(Faction::Enemy), t)
                 .map(|a| a.id())
         };
 
         let dl = action.effect_delay();
 
-        let this_id = src.id();
+        let this_id = this.id();
 
         if action.gcd().is_some() {
             match action {
@@ -189,7 +190,7 @@ impl Job for RprJob {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.combos.main.set(MainCombo::Slice);
                 state.soul += 10;
-                event_sink.damage(DamageEvent::new(320, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(320).slashing(), t, dl);
             }
             WaxingSlice => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
@@ -202,18 +203,20 @@ impl Job for RprJob {
                     false
                 };
                 event_sink.damage(
-                    DamageEvent::new(combo_pot(160, 400, combo), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pot(160, 400, combo)).slashing(),
+                    t,
                     dl,
                 );
             }
             ShadowOfDeath => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 event_sink.apply_or_extend_status(DEATHS_DESIGN, 1, 2, t, dl);
-                event_sink.damage(DamageEvent::new(300, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(300).slashing(), t, dl);
             }
             Harpe => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                event_sink.damage(DamageEvent::new(300, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(300).slashing(), t, dl);
             }
             // it doesn't really matter
             HellsIngress | HellsEgress => {
@@ -224,7 +227,7 @@ impl Job for RprJob {
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
-                    event_sink.damage(DamageEvent::new(140, t).slashing(), c.next());
+                    event_sink.damage(this, DamageInstance::new(140).slashing(), t, c.next());
                 }
                 if hit {
                     state.soul += 10;
@@ -243,7 +246,9 @@ impl Job for RprJob {
                 };
                 state.combos.main.reset();
                 event_sink.damage(
-                    DamageEvent::new(combo_pot(180, 500, combo), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pot(180, 500, combo)).slashing(),
+                    t,
                     dl,
                 );
             }
@@ -252,7 +257,7 @@ impl Job for RprJob {
                 for t in target_enemy(CIRCLE) {
                     let dl = c.next();
                     event_sink.apply_or_extend_status(DEATHS_DESIGN, 1, 2, t, dl);
-                    event_sink.damage(DamageEvent::new(100, t).slashing(), dl);
+                    event_sink.damage(this, DamageInstance::new(100).slashing(), t, dl);
                 }
             }
             NightmareScythe => {
@@ -263,7 +268,9 @@ impl Job for RprJob {
                 for t in target_enemy(CIRCLE) {
                     hit = true;
                     event_sink.damage(
-                        DamageEvent::new(combo_pot(120, 180, combo), t).slashing(),
+                        this,
+                        DamageInstance::new(combo_pot(120, 180, combo)).slashing(),
+                        t,
                         c.next(),
                     );
                 }
@@ -274,14 +281,14 @@ impl Job for RprJob {
             BloodStalk => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.soul -= 50;
-                event_sink.damage(DamageEvent::new(340, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(340).slashing(), t, dl);
                 // almost certain it is no delay of the soul reaver stack
                 event_sink.apply_status(SOUL_REAVER, 1, this_id, 0);
             }
             GrimSwathe => {
                 let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
-                    event_sink.damage(DamageEvent::new(140, t).slashing(), c.next());
+                    event_sink.damage(this, DamageInstance::new(140).slashing(), t, c.next());
                 }
                 state.soul -= 50;
                 event_sink.apply_status(SOUL_REAVER, 1, this_id, 0);
@@ -289,14 +296,14 @@ impl Job for RprJob {
             SoulSlice => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.soul -= 50;
-                event_sink.damage(DamageEvent::new(460, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(460).slashing(), t, dl);
             }
             SoulScythe => {
                 let mut c = EventCascade::new(dl, 1);
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
-                    event_sink.damage(DamageEvent::new(180, t).slashing(), c.next());
+                    event_sink.damage(this, DamageInstance::new(180).slashing(), t, c.next());
                 }
                 if hit {
                     state.soul += 50;
@@ -304,22 +311,26 @@ impl Job for RprJob {
             }
             Gibbet => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
-                let en = consume_status(src, event_sink, ENGIBBET, 0);
+                let en = consume_status(this, event_sink, ENGIBBET, 0);
                 state.shroud += 10;
-                let pos = src.check_positional(Positional::Flank, t);
+                let pos = this.check_positional(Positional::Flank, t);
                 event_sink.damage(
-                    DamageEvent::new(combo_pos_pot(400, 460, 460, 520, en, pos), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pos_pot(400, 460, 460, 520, en, pos)).slashing(),
+                    t,
                     dl,
                 );
                 event_sink.apply_status(ENGALLOWS, 1, this_id, 0);
             }
             Gallows => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
-                let en = consume_status(src, event_sink, ENGALLOWS, 0);
+                let en = consume_status(this, event_sink, ENGALLOWS, 0);
                 state.shroud += 10;
-                let pos = src.check_positional(Positional::Rear, t);
+                let pos = this.check_positional(Positional::Rear, t);
                 event_sink.damage(
-                    DamageEvent::new(combo_pos_pot(400, 460, 460, 520, en, pos), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pos_pot(400, 460, 460, 520, en, pos)).slashing(),
+                    t,
                     dl,
                 );
                 event_sink.apply_status(ENGIBBET, 1, this_id, 0);
@@ -327,13 +338,13 @@ impl Job for RprJob {
             Guillotine => {
                 let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
-                    event_sink.damage(DamageEvent::new(200, t).slashing(), c.next());
+                    event_sink.damage(this, DamageInstance::new(200).slashing(), t, c.next());
                 }
                 state.shroud += 10;
             }
             ArcaneCircle => {
                 let mut c = EventCascade::new(dl, 3);
-                for t in src
+                for t in this
                     .actors_for_action(Some(Faction::Party), ActionTargetting::circle(30))
                     .map(|a| a.id())
                 {
@@ -342,18 +353,14 @@ impl Job for RprJob {
                     event_sink.apply_status(CIRCLE_SACRIFICE, 1, t, dl);
                 }
                 event_sink.apply_status(BLOODSOWN_SACRIFICE, 1, this_id, dl);
-                // TODO: i'm lazy and i'll fix this eventually
-                // but this won't ever really be observable
-                // unless you specifically want less stacks lol
-                event_sink.apply_status(IMMORTAL_SACRIFICE, 8, this_id, dl);
             }
             Gluttony => {
                 let (f, o) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
                 state.soul -= 50;
                 let mut c = EventCascade::new(dl, 1);
-                event_sink.damage(DamageEvent::new(520, f).magical(), c.next());
+                event_sink.damage(this, DamageInstance::new(520).magical(), f, c.next());
                 for t in o {
-                    event_sink.damage(DamageEvent::new(390, t).magical(), c.next());
+                    event_sink.damage(this, DamageInstance::new(390).magical(), t, c.next());
                 }
                 event_sink.apply_status(SOUL_REAVER, 2, this_id, 0);
             }
@@ -368,20 +375,24 @@ impl Job for RprJob {
             PlentifulHarvest => {
                 let (first, other) =
                     need_target!(target_enemy(ActionTargetting::line(15)), event_sink, aoe);
-                let stacks = src
+                let stacks = this
                     .get_own_status(IMMORTAL_SACRIFICE)
                     .map(|v| v.stack)
                     .unwrap_or_default();
                 state.shroud += 50;
                 let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(
-                    DamageEvent::new(680 + 40 * stacks as u16, first).slashing(),
+                    this,
+                    DamageInstance::new(680 + 40 * stacks as u64).slashing(),
+                    first,
                     c.next(),
                 );
                 for t in other {
                     // 60% less
                     event_sink.damage(
-                        DamageEvent::new(272 + 16 * stacks as u16, t).slashing(),
+                        this,
+                        DamageInstance::new(272 + 16 * stacks as u64).slashing(),
+                        t,
                         c.next(),
                     );
                 }
@@ -390,9 +401,9 @@ impl Job for RprJob {
             Communio => {
                 let (f, o) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
                 let mut c = EventCascade::new(dl, 1);
-                event_sink.damage(DamageEvent::new(1100, f).magical(), c.next());
+                event_sink.damage(this, DamageInstance::new(1100).magical(), f, c.next());
                 for t in o {
-                    event_sink.damage(DamageEvent::new(440, t).magical(), c.next());
+                    event_sink.damage(this, DamageInstance::new(440).magical(), t, c.next());
                 }
                 state.lemure_shroud.clear();
                 state.void_shroud.clear();
@@ -401,18 +412,18 @@ impl Job for RprJob {
             UnveiledGibbet => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.soul -= 50;
-                event_sink.damage(DamageEvent::new(400, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(400).slashing(), t, dl);
                 event_sink.apply_status(SOUL_REAVER, 1, this_id, 0);
             }
             UnveiledGallows => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.soul -= 50;
-                event_sink.damage(DamageEvent::new(400, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(400).slashing(), t, dl);
                 event_sink.apply_status(SOUL_REAVER, 1, this_id, 0);
             }
             VoidReaping => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
-                let en = consume_status(src, event_sink, ENVOID, 0);
+                let en = consume_status(this, event_sink, ENVOID, 0);
                 state.lemure_shroud -= 1;
                 if state.lemure_shroud == 0 {
                     state.void_shroud.clear();
@@ -421,11 +432,16 @@ impl Job for RprJob {
                     event_sink.apply_status(ENCROSS, 1, this_id, 0);
                     state.void_shroud += 1;
                 }
-                event_sink.damage(DamageEvent::new(combo_pot(460, 520, en), t).slashing(), dl);
+                event_sink.damage(
+                    this,
+                    DamageInstance::new(combo_pot(460, 520, en)).slashing(),
+                    t,
+                    dl,
+                );
             }
             CrossReaping => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
-                let en = consume_status(src, event_sink, ENCROSS, 0);
+                let en = consume_status(this, event_sink, ENCROSS, 0);
                 state.lemure_shroud -= 1;
                 if state.lemure_shroud == 0 {
                     state.void_shroud.clear();
@@ -434,7 +450,12 @@ impl Job for RprJob {
                     event_sink.apply_status(ENVOID, 1, this_id, 0);
                     state.void_shroud += 1;
                 }
-                event_sink.damage(DamageEvent::new(combo_pot(460, 520, en), t).slashing(), dl);
+                event_sink.damage(
+                    this,
+                    DamageInstance::new(combo_pot(460, 520, en)).slashing(),
+                    t,
+                    dl,
+                );
             }
             GrimReaping => {
                 state.lemure_shroud -= 1;
@@ -446,29 +467,51 @@ impl Job for RprJob {
                 }
                 let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
-                    event_sink.damage(DamageEvent::new(200, t).slashing(), c.next());
+                    event_sink.damage(this, DamageInstance::new(200).slashing(), t, c.next());
                 }
             }
             HarvestMoon => {
                 let (f, o) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
-                consume_status(src, event_sink, SOULSOW, 0);
+                consume_status(this, event_sink, SOULSOW, 0);
                 let mut c = EventCascade::new(dl, 1);
-                event_sink.damage(DamageEvent::new(600, f).magical(), c.next());
+                event_sink.damage(this, DamageInstance::new(600).magical(), f, c.next());
                 for t in o {
-                    event_sink.damage(DamageEvent::new(300, t).magical(), c.next());
+                    event_sink.damage(this, DamageInstance::new(300).magical(), t, c.next());
                 }
             }
             LemuresSlice => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.void_shroud -= 2;
-                event_sink.damage(DamageEvent::new(240, t).slashing(), dl);
+                event_sink.damage(this, DamageInstance::new(240).slashing(), t, dl);
             }
             LemuresScythe => {
                 let mut c = EventCascade::new(dl, 1);
                 for t in need_target!(target_enemy(CONE), event_sink, uaoe) {
-                    event_sink.damage(DamageEvent::new(100, t).slashing(), c.next());
+                    event_sink.damage(this, DamageInstance::new(100).slashing(), t, c.next());
                 }
                 state.void_shroud -= 2;
+            }
+        }
+    }
+
+    fn event<'w, E: EventProxy, W: World>(
+        _: &mut Self::State,
+        _: &'w W,
+        event: &Event,
+        this: &'w W::Actor<'w>,
+        event_src: Option<&'w W::Actor<'w>>,
+        event_sink: &mut E,
+    ) {
+        if let Event::Damage(_) = event {
+            if let Some(event_src) = event_src {
+                // if a damage event happens from a party member while
+                // they have circle of sacrifice
+                if event_src.faction() == Faction::Party
+                    && event_src.has_status(CIRCLE_SACRIFICE, this.id())
+                {
+                    event_sink.apply_or_add_stacks(IMMORTAL_SACRIFICE, 1, 8, this.id(), 0);
+                    event_sink.remove_status(CIRCLE_SACRIFICE, event_src.id(), 0);
+                }
             }
         }
     }

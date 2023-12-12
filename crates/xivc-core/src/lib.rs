@@ -8,6 +8,9 @@
 #![cfg_attr(not(test), no_std)]
 #![warn(missing_docs)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 pub mod enums;
 pub mod job;
 pub mod math;

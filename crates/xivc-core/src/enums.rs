@@ -1,11 +1,16 @@
 //! Various enums for data used in the crate.
+//!
 
 use core::fmt::{self, Display};
 use macros::var_consts;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::math::ActionStat;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[var_consts {
     /// Returns the human readable name of the clan's base race.
     pub const race_name: &'static str
@@ -85,7 +90,8 @@ impl Display for Clan {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(clippy::upper_case_acronyms)] // this is literally the way FF14 does it so I'm not gonna change it :)))
 #[var_consts {
     /// Returns `true` if the job is a tank.
@@ -234,12 +240,23 @@ pub enum Job {
     #[name = "Sage"]
     SGE,
 }
+impl Job {
+    /// Returns the stat used to attack for the job.
+    pub const fn attack_stat(&self) -> ActionStat {
+        if self.caster() || self.healer() {
+            ActionStat::AttackMagic
+        } else {
+            ActionStat::AttackPower
+        }
+    }
+}
 impl Display for Job {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(missing_docs)]
 /// Elements that damage can be.
@@ -253,6 +270,7 @@ pub enum DamageElement {
     Lightning,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[var_consts {
     /// Returns `true` if the damage type is physical.
@@ -284,29 +302,158 @@ pub enum DamageType {
     Unique,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// An instance of damage.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+/// A instance of premodified damage.
 pub struct DamageInstance {
-    /// The damage.
-    pub dmg: u64,
-    /// The type of the damage.
-    pub ty: DamageType,
+    /// The potency of the damage instance.
+    pub potency: u64,
     /// The element of the damage.
-    pub el: DamageElement,
+    pub dmg_el: DamageElement,
+    /// The type of the damage.
+    pub dmg_ty: DamageType,
+    /// Should the damage force a critical hit.
+    pub force_ch: bool,
+    /// Should the damage force a direct hit.
+    pub force_dh: bool,
 }
 
 impl DamageInstance {
-    /// Creates a basic damage instance from an amount of damage
-    /// and the attack power stat used for the damage.
-    pub const fn basic(dmg: u64, stat: ActionStat) -> Self {
+    /// Creates a new damage instance.
+    ///
+    /// The default damage type is [`Unique`], and the default element is [`None`][elnone].
+    /// Every single job action will want to set one of [`slashing`], [`piercing`], [`blunt`],
+    /// or [`magical`].
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageElement, DamageType, DamageInstance};
+    /// let damage = DamageInstance::new(100);
+    ///
+    /// assert_eq!(damage.dmg_el, DamageElement::None);
+    /// assert_eq!(damage.dmg_ty, DamageType::Unique);
+    /// assert_eq!(damage.force_ch, false);
+    /// assert_eq!(damage.force_dh, false);
+    /// ```
+    ///
+    /// [`Unique`]: DamageType::Unique
+    /// [elnone]: DamageElement::None
+    /// [`slashing`]: DamageInstance::slashing
+    /// [`piercing`]: DamageInstance::piercing
+    /// [`blunt`]: DamageInstance::blunt
+    /// [`magical`]: DamageInstance::magical
+    pub const fn new(potency: u64) -> Self {
         Self {
-            dmg,
-            el: DamageElement::None,
-            ty: match stat {
-                ActionStat::AttackMagic => DamageType::Magical,
-                ActionStat::AttackPower => DamageType::Slashing,
-                ActionStat::HealingMagic => DamageType::Unique,
-            },
+            potency,
+            dmg_ty: DamageType::Unique,
+            dmg_el: DamageElement::None,
+            force_ch: false,
+            force_dh: false,
         }
+    }
+    /// Sets the damage type of this damage instance to physical slashing damage.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageType, DamageInstance};
+    /// let damage = DamageInstance::new(300).slashing();
+    ///
+    /// assert_eq!(damage.dmg_ty, DamageType::Slashing);
+    /// ```
+    pub const fn slashing(mut self) -> Self {
+        self.dmg_ty = DamageType::Slashing;
+        self
+    }
+    /// Sets the damage type of this damage instance to physical piercing damage.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageType, DamageInstance};
+    /// let damage = DamageInstance::new(520).piercing();
+    ///
+    /// assert_eq!(damage.dmg_ty, DamageType::Piercing);
+    /// ```
+    pub const fn piercing(mut self) -> Self {
+        self.dmg_ty = DamageType::Piercing;
+        self
+    }
+    /// Sets the damage type of this damage instance to physical blunt damage.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageType, DamageInstance};
+    /// let damage = DamageInstance::new(150).blunt();
+    ///
+    /// assert_eq!(damage.dmg_ty, DamageType::Blunt);
+    /// ```
+    pub const fn blunt(mut self) -> Self {
+        self.dmg_ty = DamageType::Blunt;
+        self
+    }
+    /// Sets the damage type of this damage instance to magical damage.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageType, DamageInstance};
+    /// let damage = DamageInstance::new(200).magical();
+    ///
+    /// assert_eq!(damage.dmg_ty, DamageType::Magical);
+    /// ```
+    pub const fn magical(mut self) -> Self {
+        self.dmg_ty = DamageType::Magical;
+        self
+    }
+    /// Sets the damage type of this damage instance to unique damage.
+    ///
+    /// This is not strictly needed as the default damage type is unique damage.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageType, DamageInstance};
+    /// let damage = DamageInstance::new(500).unique();
+    ///
+    /// assert_eq!(damage.dmg_ty, DamageType::Unique);
+    /// ```
+    pub const fn unique(mut self) -> Self {
+        self.dmg_ty = DamageType::Unique;
+        self
+    }
+    /// Sets the damage element of this damage instance to the specified element.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::{DamageElement, DamageInstance};
+    /// let damage = DamageInstance::new(300).element(DamageElement::Fire);
+    ///
+    /// assert_eq!(damage.dmg_el, DamageElement::Fire);
+    /// ```
+    pub const fn element(mut self, element: DamageElement) -> Self {
+        self.dmg_el = element;
+        self
+    }
+    /// Forces this damage instance to critical hit.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::DamageInstance;
+    /// let damage = DamageInstance::new(1100).force_crit();
+    ///
+    /// assert_eq!(damage.force_ch, true);
+    /// ```
+    pub const fn force_crit(mut self) -> Self {
+        self.force_ch = true;
+        self
+    }
+    /// Forces this damage instance to direct hit.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::DamageInstance;
+    /// let damage = DamageInstance::new(620).force_dhit();
+    ///
+    /// assert_eq!(damage.force_dh, true);
+    /// ```
+    pub const fn force_dhit(mut self) -> Self {
+        self.force_dh = true;
+        self
     }
 }

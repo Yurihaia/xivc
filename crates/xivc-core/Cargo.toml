@@ -10,7 +10,9 @@ include = ["./sheets/**/*"]
 
 [features]
 serde = ["dep:serde"]
+alloc = []
 
 [dependencies]
 macros.workspace = true
 serde = { workspace = true, features = [ "derive" ], optional = true }
+rand_core.workspace = true

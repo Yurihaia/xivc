@@ -349,6 +349,7 @@ macro_rules! job_cd_struct {
 /// #     ActionTargetting,
 /// #     DamageEvent
 /// };
+/// # use xivc_core::enums::DamageInstance;
 /// # fn example(world: &impl World, event_sink: &mut impl EventProxy) {
 /// # let src = world.actor(ActorId(0)).unwrap();
 /// # let targets = std::iter::empty(); // doc moment
@@ -357,7 +358,7 @@ macro_rules! job_cd_struct {
 /// // Iterate over the targets of an action.
 /// for target in targets {
 ///     // Apply damage with the cascading delay to each target.
-///     event_sink.damage(DamageEvent::new(300, target).magical(), cascade.next());
+///     event_sink.damage(src, DamageInstance::new(300).magical(), target, cascade.next());
 /// }
 /// # }
 /// ```

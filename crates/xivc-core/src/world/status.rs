@@ -28,7 +28,7 @@ use core::{
 
 use crate::{
     enums::{DamageElement, DamageInstance, DamageType},
-    math::{Buffs, PlayerStats},
+    math::{Buffs, EotSnapshot, PlayerStats},
 };
 
 use super::{Actor, ActorId, EventProxy};
@@ -206,16 +206,17 @@ impl StatusVTable {
 /// trait objects.
 pub trait JobEffect: Debug {
     /// The damage modifier for the job effect.
-    fn damage(&self, damage: DamageInstance) -> DamageInstance {
+    #[allow(unused_variables)]
+    fn damage(&self, damage: u64, dmg_ty: DamageType, dmg_el: DamageElement) -> u64 {
         damage
     }
     /// The Critical Hit modifier for the job effect.
-    fn crit(&self, chance: u64) -> u64 {
-        chance
+    fn crit(&self) -> u64 {
+        0
     }
     /// The Direct Hit modifier for the job effect.
-    fn dhit(&self, chance: u64) -> u64 {
-        chance
+    fn dhit(&self) -> u64 {
+        0
     }
     /// The haste modifier for the job effect.
     fn haste(&self) -> u64 {
@@ -247,10 +248,10 @@ pub struct StatusSnapshot<'a> {
 
 impl StatusSnapshot<'static> {
     /// Creates an empty status snapshot.
-    /// 
+    ///
     /// This is often useful when interactive with the [`math`] module
     /// manually.
-    /// 
+    ///
     /// [`math`]: crate::math
     pub const fn empty() -> Self {
         Self {
@@ -263,19 +264,19 @@ impl StatusSnapshot<'static> {
 
 impl<'a> Buffs for StatusSnapshot<'a> {
     // doing these functions using iterators was less concise because of the incoming vs outgoing difference
-    fn damage(&self, base: DamageInstance) -> DamageInstance {
+    fn damage(&self, base: u64, dmg_ty: DamageType, dmg_el: DamageElement) -> u64 {
         let mut acc = base;
         for x in self.job {
-            acc = x.damage(base);
+            acc = x.damage(base, dmg_ty, dmg_el);
         }
         for x in self.target {
             if let Some(f) = x.effect.damage.incoming {
-                acc = f(*x, acc);
+                acc = f(*x, acc, dmg_ty, dmg_el);
             }
         }
         for x in self.source {
             if let Some(f) = x.effect.damage.outgoing {
-                acc = f(*x, acc);
+                acc = f(*x, acc, dmg_ty, dmg_el);
             }
         }
         acc
@@ -284,37 +285,37 @@ impl<'a> Buffs for StatusSnapshot<'a> {
     fn crit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
         for x in self.job {
-            acc = x.crit(base);
+            acc += x.crit();
         }
         for x in self.target {
             if let Some(f) = x.effect.crit.incoming {
-                acc = f(*x, acc);
+                acc += f(*x);
             }
         }
         for x in self.source {
             if let Some(f) = x.effect.crit.outgoing {
-                acc = f(*x, acc);
+                acc += f(*x);
             }
         }
-        acc
+        acc.min(100)
     }
 
     fn dhit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
         for x in self.job {
-            acc = x.dhit(base);
+            acc += x.dhit();
         }
         for x in self.target {
             if let Some(f) = x.effect.dhit.incoming {
-                acc = f(*x, acc);
+                acc += f(*x);
             }
         }
         for x in self.source {
             if let Some(f) = x.effect.dhit.outgoing {
-                acc = f(*x, acc);
+                acc += f(*x);
             }
         }
-        acc
+        acc.min(100)
     }
 
     fn stats(&self, base: PlayerStats) -> PlayerStats {
@@ -349,20 +350,24 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 /// A function that modifies a specific damage instance.
 ///
 /// This should almost always be multiplicative.
-pub type DamageModifierFn = fn(e: StatusInstance, damage: DamageInstance) -> DamageInstance;
+#[rustfmt::skip]
+pub type DamageModifierFn = fn(
+    status: StatusInstance,
+    damage: u64,
+    dmg_ty: DamageType,
+    dmg_el: DamageElement,
+) -> u64;
 // Chance is a scaled by 1000 to get probability (every 1 is 0.1%)
 // For instance, Chain adds 100
-/// A function that modifies the probability of a critical/direct hit occuring.
-///
-/// This should almost always be additive.
-pub type ProbabilityModifierFn = fn(e: StatusInstance, chance: u64) -> u64;
+/// A function that returns an increase to the probability of a critical/direct hit occuring.
+pub type ProbabilityModifierFn = fn(status: StatusInstance) -> u64;
 // for potions and basically potions only?
 // technically food but that can usually be put into stats
 /// A function that modifies the stats of a player.
-pub type StatsModifierFn = fn(e: StatusInstance, stats: PlayerStats) -> PlayerStats;
+pub type StatsModifierFn = fn(status: StatusInstance, stats: PlayerStats) -> PlayerStats;
 // haste buffs - returns the buff as a multiplier scaled by 100
 /// A function that returns a haste buff/debuff.
-pub type SpeedModifierFn = fn(e: StatusInstance) -> u64;
+pub type SpeedModifierFn = fn(status: StatusInstance) -> u64;
 
 #[macro_export]
 /// Creates a new [`StatusEffect`].
@@ -473,21 +478,17 @@ macro_rules! __status_effect_inner {
     (vm damage {
         $k:ident = $mul:literal / $div:literal
     }) => {
-        $crate::__status_effect_inner!(modfn $k |_, mut d| {
-            d.dmg *= $mul;
-            d.dmg /= $div;
-            d
-        })
+        $crate::__status_effect_inner!(modfn $k |_, d, _, _|  d * $mul / $div)
     };
     (vm crit {
         $k:ident = $add:literal
     }) => {
-        $crate::__status_effect_inner!(modfn $k |_, c| c + $add)
+        $crate::__status_effect_inner!(modfn $k |_|$add)
     };
     (vm dhit {
         $k:ident = $add:literal
     }) => {
-        $crate::__status_effect_inner!(modfn $k |_, c| c + $add)
+        $crate::__status_effect_inner!(modfn $k |_| $add)
     };
     (vm $i:ident {
         $k:ident = $e:expr
@@ -602,20 +603,17 @@ impl StatusEvent {
         }
     }
     /// Applies a DoT status effect with a certain number of stacks on to a target actor.
-    pub const fn apply_dot( // what an awful function signature
+    pub const fn apply_dot(
+        // what an awful function signature
         status: StatusEffect,
-        potency: u16,
-        damage_type: DamageType,
-        element: DamageElement,
+        snapshot: EotSnapshot,
         stacks: u8,
         target: ActorId,
     ) -> Self {
         Self {
             kind: StatusEventKind::ApplyDot {
                 duration: status.0.duration,
-                damage_type,
-                element,
-                potency,
+                snapshot,
                 stacks,
             },
             status,
@@ -648,7 +646,9 @@ impl StatusEvent {
     }
     /// Applies a status effect or extends the duration if it already exists on a target actor.
     ///
-    /// The number of `stacks` will be added to the effect instance if it already exists.
+    /// The number of `stacks` will be overwritten. To add stacks, use [`apply_or_add_stacks`].
+    /// 
+    /// [`apply_or_add_stacks`]: StatusEvent::apply_or_add_stacks
     pub const fn apply_or_extend(
         status: StatusEffect,
         stacks: u8,
@@ -660,6 +660,28 @@ impl StatusEvent {
                 duration: status.0.duration,
                 stacks,
                 max: status.0.duration * multiple,
+            },
+            status,
+            target,
+        }
+    }
+    /// Applies a status effect or adds to the number of stacks if it already exists on a target actor.
+    ///
+    /// The number of `stacks` will be added to the effect instance if it already exists. The duration
+    /// will be unchanged. If you need to refresh the duration, use [`apply_or_extend`].
+    /// 
+    /// [`apply_or_extend`]: StatusEvent::apply_or_extend
+    pub const fn apply_or_add_stacks(
+        status: StatusEffect,
+        stacks: u8,
+        max: u8,
+        target: ActorId,
+    ) -> Self {
+        Self {
+            kind: StatusEventKind::ApplyOrAddStacks {
+                duration: status.0.duration,
+                stacks,
+                max,
             },
             status,
             target,
@@ -680,9 +702,7 @@ pub enum StatusEventKind {
     },
     ApplyDot {
         duration: u32,
-        potency: u16,
-        element: DamageElement,
-        damage_type: DamageType,
+        snapshot: EotSnapshot,
         stacks: u8,
     },
     Remove,
@@ -698,6 +718,11 @@ pub enum StatusEventKind {
         stacks: u8,
         max: u32,
     },
+    ApplyOrAddStacks {
+        duration: u32,
+        stacks: u8,
+        max: u8,
+    },
 }
 
 /// A helper trait for easily submitting status events on to an event proxy.
@@ -707,18 +732,18 @@ pub trait StatusEventExt: EventProxy {
         self.event(StatusEvent::apply(status, stacks, target).into(), delay)
     }
     /// Applies a DoT status effect with a certain number of stacks on to a target actor.
-    fn apply_dot(
+    fn apply_dot<'a>(
         &mut self,
+        actor: &impl Actor<'a>,
         status: StatusEffect,
-        potency: u16,
-        damage_type: DamageType,
-        element: DamageElement,
+        damage: DamageInstance,
         stacks: u8,
         target: ActorId,
         time: u32,
     ) {
+        let snapshot = actor.dot_damage_snapshot(damage, target);
         self.event(
-            StatusEvent::apply_dot(status, potency, damage_type, element, stacks, target).into(),
+            StatusEvent::apply_dot(status, snapshot, stacks, target).into(),
             time,
         )
     }
@@ -749,7 +774,9 @@ pub trait StatusEventExt: EventProxy {
     }
     /// Applies a status effect or extends the duration if it already exists on a target actor.
     ///
-    /// The number of `stacks` will be added to the effect instance if it already exists.
+    /// The number of `stacks` will be overwritten. To add stacks, use [`apply_or_add_stacks`].
+    /// 
+    /// [`apply_or_add_stacks`]: StatusEventExt::apply_or_add_stacks
     fn apply_or_extend_status(
         &mut self,
         status: StatusEffect,
@@ -760,6 +787,25 @@ pub trait StatusEventExt: EventProxy {
     ) {
         self.event(
             StatusEvent::apply_or_extend(status, stacks, multiple, target).into(),
+            delay,
+        )
+    }
+    /// Applies a status effect or adds to the number of stacks if it already exists on a target actor.
+    ///
+    /// The number of `stacks` will be added to the effect instance if it already exists. The duration
+    /// will be unchanged. If you need to refresh the duration, use [`apply_or_extend_status`].
+    /// 
+    /// [`apply_or_extend_status`]: StatusEventExt::apply_or_extend_status
+    fn apply_or_add_stacks(
+        &mut self,
+        status: StatusEffect,
+        stacks: u8,
+        max: u8,
+        target: ActorId,
+        delay: u32,
+    ) {
+        self.event(
+            StatusEvent::apply_or_add_stacks(status, stacks, max, target).into(),
             delay,
         )
     }

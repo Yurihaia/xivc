@@ -12,7 +12,7 @@ use core::fmt::{self, Debug, Display};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::world::{status::JobEffect, ActorId, Event, EventProxy, World};
+use crate::world::{status::JobEffect, Event, EventProxy, World};
 
 // retain the specific ordering used in game.
 #[rustfmt::skip]
@@ -112,11 +112,12 @@ pub trait Job {
     ///
     /// [`Event`]: Job::Event
     #[allow(unused_variables)]
-    fn event<E: EventProxy, W: World>(
+    fn event<'w, E: EventProxy, W: World>(
         state: &mut Self::State,
-        world: &W,
+        world: &'w W,
         event: &Event,
-        src: Option<ActorId>,
+        this: &'w W::Actor<'w>,
+        event_src: Option<&'w W::Actor<'w>>,
         event_sink: &mut E,
     ) {
         // don't require an impl

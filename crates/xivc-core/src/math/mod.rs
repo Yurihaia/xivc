@@ -27,7 +27,7 @@
 pub mod data;
 use data::{JobField, LevelField};
 
-use crate::enums::{Clan, DamageInstance, Job};
+use crate::enums::{Clan, DamageElement, DamageType, Job};
 
 #[derive(Copy, Clone, Debug)]
 /// Player main & substats.
@@ -241,8 +241,27 @@ impl XivMath {
         }
     }
 
+    /// Returns the trait modifier for the player's job.
+    ///
+    /// This is the modifier for traits like "Main and Mend".
+    pub fn job_trait_mod(&self) -> u64 {
+        let job = self.info.job;
+        if job.healer() || job.caster() {
+            130
+        } else if job.ranged() {
+            120
+        } else {
+            100
+        }
+    }
+
+    /// Returns the stat used to attack for the player's job.
+    pub fn job_attack_stat(&self) -> ActionStat {
+        self.info.job.attack_stat()
+    }
+
     /// The crit multiplied based on the handling.  
-    /// Output is scaled by `10000000` to allow for greater accuracy for [`CDHHandle::Avg`].
+    /// Output is scaled by `10000000` to allow for greater accuracy for [`HitTypeHandle::Avg`].
     pub fn crit_mod(&self, handle: HitTypeHandle, buffs: &impl Buffs) -> u64 {
         match handle {
             // damn these look similar
@@ -274,7 +293,7 @@ impl XivMath {
     }
 
     /// The direct hit multiplier based on the handling.  
-    /// Output is scaled by `1000000` to allow for greater accuracy for [`CDHHandle::Avg`].
+    /// Output is scaled by `1000000` to allow for greater accuracy for [`HitTypeHandle::Avg`].
     pub fn dhit_mod(&self, handle: HitTypeHandle, buffs: &impl Buffs) -> u64 {
         match handle {
             HitTypeHandle::Force => 1250 * (1000 + 250 * buffs.dhit_chance(0) / 1000),
@@ -430,8 +449,9 @@ impl XivMath {
     pub fn action_damage(
         &self,
         potency: u64,
+        dmg_ty: DamageType,
+        dmg_el: DamageElement,
         stat: ActionStat,
-        traits: u64,
         crit: HitTypeHandle,
         dhit: HitTypeHandle,
         // between 9500 and 10500?????
@@ -447,13 +467,15 @@ impl XivMath {
             * this.det_damage(dhit.is_force()) / 1000
             * this.ten_damage() / 1000
             * this.wd_mod(stat) / 100
-            * traits / 100
+            * this.job_trait_mod() / 100
             + (potency < 100) as u64;
         let prebuff = prerand
             * this.crit_mod(crit, buffs) / 1000000
             * this.dhit_mod(dhit, buffs) / 1000000
             * rand / 10000;
-        buffs.basic_damage(prebuff, stat)
+        buffs.damage(
+            prebuff, dmg_ty, dmg_el
+        )
     }
 
     /// Calculates the damage a damage over time tick with a certain `potency` will do.
@@ -465,8 +487,9 @@ impl XivMath {
     pub fn dot_damage_snapshot(
         &self,
         potency: u64,
+        dmg_ty: DamageType,
+        dmg_el: DamageElement,
         stat: ActionStat,
-        traits: u64,
         speed_stat: SpeedStat,
         buffs: &impl Buffs,
     ) -> EotSnapshot {
@@ -480,7 +503,7 @@ impl XivMath {
                 * this.speed_mod(speed_stat) / 1000
                 * this.det_damage(false) / 1000
                 * this.ten_damage() / 1000
-                * traits / 100
+                * this.job_trait_mod() / 100
                 + (potency < 100) as u64,
             ActionStat::AttackPower => potency
                 * this.atk_damage(stat) / 100
@@ -488,12 +511,14 @@ impl XivMath {
                 * this.ten_damage() / 1000
                 * this.speed_mod(speed_stat) / 1000
                 * this.wd_mod(stat) / 100
-                * traits / 100
+                * this.job_trait_mod() / 100
                 + (potency < 100) as u64,
             _ => panic!("ActionStat::HealingMagic cannot be used in XivMath::dot_damage_snapshot"),
         };
         EotSnapshot {
-            base: buffs.basic_damage(prerand, stat),
+            base: buffs.damage(
+                prerand, dmg_ty, dmg_el
+            ),
             crit_chance: buffs.crit_chance(this.crit_chance()) as u16,
             dhit_chance: buffs.dhit_chance(this.dhit_chance()) as u16,
             crit_damage: this.crit_damage() as u16
@@ -508,7 +533,8 @@ impl XivMath {
     pub fn aa_damage(
         &self,
         potency: u64,
-        traits: u64,
+        dmg_ty: DamageType,
+        dmg_el: DamageElement,
         crit: HitTypeHandle,
         dhit: HitTypeHandle,
         rand: u64,
@@ -521,13 +547,15 @@ impl XivMath {
             * this.ten_damage() / 1000
             * this.sks_mod() / 1000
             * this.aa_mod() / 100
-            * traits / 100
+            * this.job_trait_mod() / 100
             + (potency < 100) as u64;
         let prebuff = prerng
             * this.crit_mod(crit, buffs) / 1000000
             * this.dhit_mod(dhit, buffs) / 1000000
             * rand / 10000;
-        buffs.basic_damage(prebuff, ActionStat::AttackPower)
+        buffs.damage(
+            prebuff, dmg_ty, dmg_el,
+        )
     }
 
     /// Calculates the cast or recast time of an action that uses `speed_stat`.
@@ -543,7 +571,7 @@ impl XivMath {
 /// [status effects]: crate::world::status::StatusEffect
 pub trait Buffs {
     /// The combined damage multiplier.
-    fn damage(&self, base: DamageInstance) -> DamageInstance;
+    fn damage(&self, base: u64, dmg_ty: DamageType, dmg_el: DamageElement) -> u64;
 
     // these should always be additive
     // some handling depends on it, and there is no way to test
@@ -557,14 +585,9 @@ pub trait Buffs {
     fn stats(&self, base: PlayerStats) -> PlayerStats;
     /// The combined haste effects.
     fn haste(&self, base: u64) -> u64;
-
-    /// The combined damage multiplier for damage which is type agnostic.
-    fn basic_damage(&self, base: u64, stat: ActionStat) -> u64 {
-        self.damage(DamageInstance::basic(base, stat)).dmg
-    }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Hash)]
 /// A snapshot for some Effect-over-Time status.
 pub struct EotSnapshot {
     /// The base damage before randomization for the status.
@@ -590,7 +613,7 @@ impl EotSnapshot {
     }
 
     /// The crit multiplier based on the handling.  
-    /// Output is scaled by `1000000`  to allow for greater accuracy for [`CDHHandle::Avg`].
+    /// Output is scaled by `1000000`  to allow for greater accuracy for [`HitTypeHandle::Avg`].
     const fn crt_mod(&self, handle: HitTypeHandle) -> u64 {
         let damage = self.crit_damage as u64;
         let chance = self.crit_chance as u64;
@@ -605,7 +628,7 @@ impl EotSnapshot {
     }
 
     /// The direct hit multiplier based on the handling.  
-    /// Output is scaled by `1000000` to allow for greater accuracy for [`CDHHandle::Avg`].
+    /// Output is scaled by `1000000` to allow for greater accuracy for [`HitTypeHandle::Avg`].
     const fn dh_mod(&self, handle: HitTypeHandle) -> u64 {
         let damage = 1250;
         let chance = self.dhit_chance as u64;

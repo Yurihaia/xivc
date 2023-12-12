@@ -6,15 +6,15 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    enums::{DamageElement, DamageType},
+    enums::DamageInstance,
     job::{Job, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, consume_status_stack, StatusEffect, StatusEventExt},
-        ActionTargetting, Actor, DamageEvent, DamageEventExt, EventError, EventProxy, Faction,
-        Positional, World,
+        ActionTargetting, Actor, DamageEventExt, EventError, EventProxy, Faction, Positional,
+        World,
     },
 };
 
@@ -142,7 +142,7 @@ impl Job for SamJob {
                 consume_meikyo(p);
                 s.combos.main.set(MainCombo::Hakaze);
                 s.kenki += 5;
-                p.damage(DamageEvent::new(200, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(200).slashing(), t, dl);
             }
             Jinpu => {
                 let t = need_target!(target_enemy(MELEE).next(), p);
@@ -158,7 +158,9 @@ impl Job for SamJob {
                     false
                 };
                 p.damage(
-                    DamageEvent::new(combo_pot(120, 280, combo), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pot(120, 280, combo)).slashing(),
+                    t,
                     dl,
                 );
             }
@@ -176,7 +178,9 @@ impl Job for SamJob {
                     false
                 };
                 p.damage(
-                    DamageEvent::new(combo_pot(120, 280, combo), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pot(120, 280, combo)).slashing(),
+                    t,
                     dl,
                 );
             }
@@ -192,7 +196,9 @@ impl Job for SamJob {
                     false
                 };
                 p.damage(
-                    DamageEvent::new(combo_pot(120, 300, combo), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pot(120, 300, combo)).slashing(),
+                    t,
                     dl,
                 );
                 s.combos.main.reset();
@@ -213,7 +219,9 @@ impl Job for SamJob {
                 }
                 let pos = this.check_positional(Positional::Rear, t);
                 p.damage(
-                    DamageEvent::new(combo_pos_pot(120, 170, 330, 380, combo, pos), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pos_pot(120, 170, 330, 380, combo, pos)).slashing(),
+                    t,
                     dl,
                 );
                 s.combos.main.reset();
@@ -234,7 +242,9 @@ impl Job for SamJob {
                 }
                 let pos = this.check_positional(Positional::Rear, t);
                 p.damage(
-                    DamageEvent::new(combo_pos_pot(120, 170, 330, 380, combo, pos), t).slashing(),
+                    this,
+                    DamageInstance::new(combo_pos_pot(120, 170, 330, 380, combo, pos)).slashing(),
+                    t,
                     dl,
                 );
                 s.combos.main.reset();
@@ -246,7 +256,7 @@ impl Job for SamJob {
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
-                    p.damage(DamageEvent::new(100, t).slashing(), c.next());
+                    p.damage(this, DamageInstance::new(100).slashing(), t, c.next());
                 }
                 if hit {
                     s.combos.main.set(MainCombo::Fuko);
@@ -269,7 +279,9 @@ impl Job for SamJob {
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     p.damage(
-                        DamageEvent::new(combo_pot(100, 120, combo), t).slashing(),
+                        this,
+                        DamageInstance::new(combo_pot(100, 120, combo)).slashing(),
+                        t,
                         c.next(),
                     );
                 }
@@ -289,7 +301,9 @@ impl Job for SamJob {
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     p.damage(
-                        DamageEvent::new(combo_pot(100, 120, combo), t).slashing(),
+                        this,
+                        DamageInstance::new(combo_pot(100, 120, combo)).slashing(),
+                        t,
                         c.next(),
                     );
                 }
@@ -300,31 +314,33 @@ impl Job for SamJob {
                 s.kenki += 10;
                 let en_enpi = consume_status(this, p, ENENPI, 0);
                 p.damage(
-                    DamageEvent::new(if en_enpi { 260 } else { 100 }, t).slashing(),
+                    this,
+                    DamageInstance::new(if en_enpi { 260 } else { 100 }).slashing(),
+                    t,
                     dl,
                 );
             }
             Shinten => {
                 let t = need_target!(target_enemy(MELEE).next(), p);
                 s.kenki -= 25;
-                p.damage(DamageEvent::new(250, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(250).slashing(), t, dl);
             }
             Kyuten => {
                 s.kenki -= 25;
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    p.damage(DamageEvent::new(120, t).slashing(), c.next());
+                    p.damage(this, DamageInstance::new(120).slashing(), t, c.next());
                 }
             }
             Gyoten => {
                 let t = need_target!(target_enemy(RANGED).next(), p);
                 s.kenki -= 10;
-                p.damage(DamageEvent::new(100, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(100).slashing(), t, dl);
             }
             Yaten => {
                 let t = need_target!(target_enemy(MELEE).next(), p);
                 s.kenki -= 10;
-                p.damage(DamageEvent::new(100, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(100).slashing(), t, dl);
                 p.apply_status(ENENPI, 1, this_id, dl);
             }
             Hagakure => {
@@ -336,9 +352,9 @@ impl Job for SamJob {
                 let (first, other) = need_target!(target_enemy(ActionTargetting::line(10)), p, aoe);
                 s.kenki -= 25;
                 let mut c = EventCascade::new(dl, 1);
-                p.damage(DamageEvent::new(500, first).slashing(), c.next());
+                p.damage(this, DamageInstance::new(500).slashing(), first, c.next());
                 for t in other {
-                    p.damage(DamageEvent::new(375, t).slashing(), c.next());
+                    p.damage(this, DamageInstance::new(375).slashing(), t, c.next());
                 }
             }
             Meikyo => {
@@ -349,7 +365,7 @@ impl Job for SamJob {
             Senei => {
                 let t = need_target!(target_enemy(MELEE).next(), p);
                 s.kenki -= 25;
-                p.damage(DamageEvent::new(860, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(860).slashing(), t, dl);
             }
             Ikishoten => {
                 s.kenki += 50;
@@ -358,13 +374,13 @@ impl Job for SamJob {
             Shoha => {
                 let t = need_target!(target_enemy(MELEE).next(), p);
                 s.meditation.clear();
-                p.damage(DamageEvent::new(560, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(560).slashing(), t, dl);
             }
             Shoha2 => {
                 s.meditation.clear();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    p.damage(DamageEvent::new(200, t).slashing(), c.next());
+                    p.damage(this, DamageInstance::new(200).slashing(), t, c.next());
                 }
             }
             Namikiri => {
@@ -375,11 +391,18 @@ impl Job for SamJob {
                 consume_status(this, p, OGI_READY, 0);
                 let mut c = EventCascade::new(dl, 1);
                 p.damage(
-                    DamageEvent::new(860, first).slashing().force_crit(),
+                    this,
+                    DamageInstance::new(860).slashing().force_crit(),
+                    first,
                     c.next(),
                 );
                 for t in other {
-                    p.damage(DamageEvent::new(215, t).slashing().force_crit(), c.next());
+                    p.damage(
+                        this,
+                        DamageInstance::new(215).slashing().force_crit(),
+                        t,
+                        c.next(),
+                    );
                 }
             }
             Higanbana => {
@@ -387,12 +410,11 @@ impl Job for SamJob {
                 s.meditation += 1;
                 s.combos.kaeshi.set(KaeshiCombo::Higanbana);
                 s.sen.clear();
-                p.damage(DamageEvent::new(200, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(200).slashing(), t, dl);
                 p.apply_dot(
+                    this,
                     HIGANBANA,
-                    45,
-                    DamageType::Slashing,
-                    DamageElement::None,
+                    DamageInstance::new(45).slashing(),
                     1,
                     t,
                     dl,
@@ -404,7 +426,7 @@ impl Job for SamJob {
                 s.sen.clear();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
-                    p.damage(DamageEvent::new(300, t).slashing(), c.next());
+                    p.damage(this, DamageInstance::new(300).slashing(), t, c.next());
                 }
             }
             Midare => {
@@ -412,18 +434,22 @@ impl Job for SamJob {
                 s.meditation += 1;
                 s.combos.kaeshi.set(KaeshiCombo::Setsugekka);
                 s.sen.clear();
-                p.damage(DamageEvent::new(640, t).slashing().force_crit(), dl);
+                p.damage(
+                    this,
+                    DamageInstance::new(640).slashing().force_crit(),
+                    t,
+                    dl,
+                );
             }
             KaeshiHiganbana => {
                 let t = need_target!(target_enemy(IAIJUTSU).next(), p);
                 s.meditation += 1;
                 s.combos.kaeshi.reset();
-                p.damage(DamageEvent::new(200, t).slashing(), dl);
+                p.damage(this, DamageInstance::new(200).slashing(), t, dl);
                 p.apply_dot(
+                    this,
                     HIGANBANA,
-                    45,
-                    DamageType::Slashing,
-                    DamageElement::None,
+                    DamageInstance::new(45).slashing(),
                     1,
                     t,
                     dl,
@@ -434,14 +460,19 @@ impl Job for SamJob {
                 s.combos.kaeshi.reset();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
-                    p.damage(DamageEvent::new(300, t).slashing(), c.next());
+                    p.damage(this, DamageInstance::new(300).slashing(), t, c.next());
                 }
             }
             KaeshiSetsugekka => {
                 let t = need_target!(target_enemy(IAIJUTSU).next(), p);
                 s.meditation += 1;
                 s.combos.kaeshi.reset();
-                p.damage(DamageEvent::new(640, t).slashing().force_crit(), dl);
+                p.damage(
+                    this,
+                    DamageInstance::new(640).slashing().force_crit(),
+                    t,
+                    dl,
+                );
             }
             KaeshiNamikiri => {
                 let (first, other) =
@@ -450,11 +481,18 @@ impl Job for SamJob {
                 s.combos.kaeshi.reset();
                 let mut c = EventCascade::new(dl, 1);
                 p.damage(
-                    DamageEvent::new(860, first).slashing().force_crit(),
+                    this,
+                    DamageInstance::new(860).slashing().force_crit(),
+                    first,
                     c.next(),
                 );
                 for t in other {
-                    p.damage(DamageEvent::new(215, t).slashing().force_crit(), c.next());
+                    p.damage(
+                        this,
+                        DamageInstance::new(215).slashing().force_crit(),
+                        t,
+                        c.next(),
+                    );
                 }
             }
         }
