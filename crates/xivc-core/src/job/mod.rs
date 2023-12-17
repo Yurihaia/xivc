@@ -14,13 +14,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::world::{status::JobEffect, Event, EventProxy, World};
 
-// retain the specific ordering used in game.
+// #[rustfmt::skip] attributes are to retain the specific ordering used in game.
+// there is unfortunately no better way than to duplicate these attributes
+// onto each module.
+
+/// Logic and types for Bard.
 #[rustfmt::skip]
+pub mod brd;
 /// Logic and types for Samurai.
+#[rustfmt::skip]
 pub mod sam;
 /// Logic and types for Reaper.
-pub mod brd;
-/// Logic and types for Reaper.
+#[rustfmt::skip]
 pub mod rpr;
 
 /// A set of logic for working with jobs in a uniform way.
