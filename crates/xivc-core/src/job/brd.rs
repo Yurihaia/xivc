@@ -374,7 +374,7 @@ impl Job for BrdJob {
                         dl,
                     );
                 }
-                event_sink.damage(this, DamageInstance::new(100).piercing(), t, dl);
+                barrage(event_sink, DamageInstance::new(100).piercing(), t, dl);
             }
             Sidewinder => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
