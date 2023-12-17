@@ -31,7 +31,7 @@ pub const FUGETSU: StatusEffect = status_effect!(
 );
 /// The status effect Fuka.
 pub const FUKA: StatusEffect = status_effect!(
-    "Fuka" 40000 { haste { 100 - 13 } }
+    "Fuka" 40000 { haste { |_| 100 - 13 } }
 );
 /// The status effect Ogi Namikiri Ready.
 pub const OGI_READY: StatusEffect = status_effect!("Ogi Namikiri Ready" 30000);
@@ -53,10 +53,10 @@ impl Job for SamJob {
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
-        src: &'w W::Actor<'w>,
+        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
-        let di = src.duration_info();
+        let di = this.duration_info();
 
         let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
         let (lock, snap) = di.get_cast(action.cast(), 600);
@@ -64,9 +64,16 @@ impl Job for SamJob {
         let cd = action
             .cd_group()
             .map(|v| (v, action.cooldown(), action.cd_charges()));
+        
+        let alt_cd = action.alt_cd_group().map(|v| (v, 1000, 1));
 
         // check errors
         if let Some((cdg, cd, charges)) = cd {
+            if !state.cds.available(cdg, cd, charges) {
+                event_sink.error(EventError::Cooldown(action.into()));
+            }
+        }
+        if let Some((cdg, cd, charges)) = alt_cd {
             if !state.cds.available(cdg, cd, charges) {
                 event_sink.error(EventError::Cooldown(action.into()));
             }
@@ -82,8 +89,8 @@ impl Job for SamJob {
             }
         }
         match action {
-            Ikishoten if !src.in_combat() => event_sink.error(EventError::InCombat),
-            Namikiri if !src.has_own_status(OGI_READY) => {
+            Ikishoten if !this.in_combat() => event_sink.error(EventError::InCombat),
+            Namikiri if !this.has_own_status(OGI_READY) => {
                 SamError::OgiRdy.submit(event_sink);
             }
             Shoha | Shoha2 if state.meditation != 3 => SamError::Meditation.submit(event_sink),
@@ -109,6 +116,7 @@ impl Job for SamJob {
             lock,
             snap,
             cd,
+            alt_cd,
         }
     }
 
@@ -117,11 +125,11 @@ impl Job for SamJob {
     }
 
     fn cast_snap<'w, P: EventProxy, W: World>(
-        ac: Self::Action,
-        s: &mut Self::State,
+        action: Self::Action,
+        state: &mut Self::State,
         _: &W,
         this: &'w W::Actor<'w>,
-        p: &mut P,
+        event_sink: &mut P,
     ) {
         use SamAction::*;
         let target_enemy = |t: ActionTargetting| {
@@ -131,33 +139,33 @@ impl Job for SamJob {
 
         let consume_meikyo = |p: &mut P| consume_status_stack(this, p, MEIKYO, 0);
 
-        let dl = ac.effect_delay();
+        let dl = action.effect_delay();
 
         let this_id = this.id();
 
-        match ac {
+        match action {
             Hakaze => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.combos.kaeshi.reset();
-                consume_meikyo(p);
-                s.combos.main.set(MainCombo::Hakaze);
-                s.kenki += 5;
-                p.damage(this, DamageInstance::new(200).slashing(), t, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.combos.kaeshi.reset();
+                consume_meikyo(event_sink);
+                state.combos.main.set(MainCombo::Hakaze);
+                state.kenki += 5;
+                event_sink.damage(this, DamageInstance::new(200).slashing(), t, dl);
             }
             Jinpu => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Hakaze) {
-                    s.combos.main.set(MainCombo::Jinpu);
-                    s.kenki += 5;
-                    p.apply_status(FUGETSU, 1, this_id, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Hakaze) {
+                    state.combos.main.set(MainCombo::Jinpu);
+                    state.kenki += 5;
+                    event_sink.apply_status(FUGETSU, 1, this_id, dl);
                     true
                 } else {
-                    s.combos.main.reset();
+                    state.combos.main.reset();
                     false
                 };
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(combo_pot(120, 280, combo)).slashing(),
                     t,
@@ -165,19 +173,19 @@ impl Job for SamJob {
                 );
             }
             Shifu => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Hakaze) {
-                    s.combos.main.set(MainCombo::Shifu);
-                    s.kenki += 5;
-                    p.apply_status(FUKA, 1, this_id, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Hakaze) {
+                    state.combos.main.set(MainCombo::Shifu);
+                    state.kenki += 5;
+                    event_sink.apply_status(FUKA, 1, this_id, dl);
                     true
                 } else {
-                    s.combos.main.reset();
+                    state.combos.main.reset();
                     false
                 };
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(combo_pot(120, 280, combo)).slashing(),
                     t,
@@ -185,135 +193,135 @@ impl Job for SamJob {
                 );
             }
             Yukikaze => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Hakaze) {
-                    s.kenki += 15;
-                    s.sen.grant_setsu();
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Hakaze) {
+                    state.kenki += 15;
+                    state.sen.grant_setsu();
                     true
                 } else {
                     false
                 };
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(combo_pot(120, 300, combo)).slashing(),
                     t,
                     dl,
                 );
-                s.combos.main.reset();
+                state.combos.main.reset();
             }
             Gekko => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Jinpu) {
-                    s.kenki += 10;
-                    s.sen.grant_getsu();
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Jinpu) {
+                    state.kenki += 10;
+                    state.sen.grant_getsu();
                     true
                 } else {
                     false
                 };
                 if meikyo {
-                    p.apply_status(FUGETSU, 1, this_id, dl);
+                    event_sink.apply_status(FUGETSU, 1, this_id, dl);
                 }
                 let pos = this.check_positional(Positional::Rear, t);
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(combo_pos_pot(120, 170, 330, 380, combo, pos)).slashing(),
                     t,
                     dl,
                 );
-                s.combos.main.reset();
+                state.combos.main.reset();
             }
             Kasha => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Shifu) {
-                    s.kenki += 10;
-                    s.sen.grant_ka();
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Shifu) {
+                    state.kenki += 10;
+                    state.sen.grant_ka();
                     true
                 } else {
                     false
                 };
                 if meikyo {
-                    p.apply_status(FUKA, 1, this_id, dl);
+                    event_sink.apply_status(FUKA, 1, this_id, dl);
                 }
                 let pos = this.check_positional(Positional::Rear, t);
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(combo_pos_pot(120, 170, 330, 380, combo, pos)).slashing(),
                     t,
                     dl,
                 );
-                s.combos.main.reset();
+                state.combos.main.reset();
             }
             Fuga | Fuko => {
-                s.combos.kaeshi.reset();
-                consume_meikyo(p);
+                state.combos.kaeshi.reset();
+                consume_meikyo(event_sink);
                 let mut c = EventCascade::new(dl, 1);
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
-                    p.damage(this, DamageInstance::new(100).slashing(), t, c.next());
+                    event_sink.damage(this, DamageInstance::new(100).slashing(), t, c.next());
                 }
                 if hit {
-                    s.combos.main.set(MainCombo::Fuko);
-                    s.kenki += 10;
+                    state.combos.main.set(MainCombo::Fuko);
+                    state.kenki += 10;
                 } else {
-                    s.combos.main.reset();
+                    state.combos.main.reset();
                 }
             }
             Mangetsu => {
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Fuko) {
-                    s.kenki += 10;
-                    s.sen.grant_getsu();
-                    p.apply_status(FUGETSU, 1, this_id, dl);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Fuko) {
+                    state.kenki += 10;
+                    state.sen.grant_getsu();
+                    event_sink.apply_status(FUGETSU, 1, this_id, dl);
                     true
                 } else {
                     false
                 };
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    p.damage(
+                    event_sink.damage(
                         this,
                         DamageInstance::new(combo_pot(100, 120, combo)).slashing(),
                         t,
                         c.next(),
                     );
                 }
-                s.combos.main.reset();
+                state.combos.main.reset();
             }
             Oka => {
-                s.combos.kaeshi.reset();
-                let meikyo = consume_meikyo(p);
-                let combo = if meikyo || s.combos.main.check(MainCombo::Fuko) {
-                    s.kenki += 10;
-                    s.sen.grant_ka();
-                    p.apply_status(FUKA, 1, this_id, dl);
+                state.combos.kaeshi.reset();
+                let meikyo = consume_meikyo(event_sink);
+                let combo = if meikyo || state.combos.main.check(MainCombo::Fuko) {
+                    state.kenki += 10;
+                    state.sen.grant_ka();
+                    event_sink.apply_status(FUKA, 1, this_id, dl);
                     true
                 } else {
                     false
                 };
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    p.damage(
+                    event_sink.damage(
                         this,
                         DamageInstance::new(combo_pot(100, 120, combo)).slashing(),
                         t,
                         c.next(),
                     );
                 }
-                s.combos.main.reset();
+                state.combos.main.reset();
             }
             Enpi => {
-                let t = need_target!(target_enemy(RANGED).next(), p);
-                s.kenki += 10;
-                let en_enpi = consume_status(this, p, ENENPI, 0);
-                p.damage(
+                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                state.kenki += 10;
+                let en_enpi = consume_status(this, event_sink, ENENPI, 0);
+                event_sink.damage(
                     this,
                     DamageInstance::new(if en_enpi { 260 } else { 100 }).slashing(),
                     t,
@@ -321,83 +329,83 @@ impl Job for SamJob {
                 );
             }
             Shinten => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.kenki -= 25;
-                p.damage(this, DamageInstance::new(250).slashing(), t, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.kenki -= 25;
+                event_sink.damage(this, DamageInstance::new(250).slashing(), t, dl);
             }
             Kyuten => {
-                s.kenki -= 25;
+                state.kenki -= 25;
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    p.damage(this, DamageInstance::new(120).slashing(), t, c.next());
+                    event_sink.damage(this, DamageInstance::new(120).slashing(), t, c.next());
                 }
             }
             Gyoten => {
-                let t = need_target!(target_enemy(RANGED).next(), p);
-                s.kenki -= 10;
-                p.damage(this, DamageInstance::new(100).slashing(), t, dl);
+                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                state.kenki -= 10;
+                event_sink.damage(this, DamageInstance::new(100).slashing(), t, dl);
             }
             Yaten => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.kenki -= 10;
-                p.damage(this, DamageInstance::new(100).slashing(), t, dl);
-                p.apply_status(ENENPI, 1, this_id, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.kenki -= 10;
+                event_sink.damage(this, DamageInstance::new(100).slashing(), t, dl);
+                event_sink.apply_status(ENENPI, 1, this_id, dl);
             }
             Hagakure => {
-                let sen_count = s.sen.count();
-                s.sen.clear();
-                s.kenki += sen_count * 10;
+                let sen_count = state.sen.count();
+                state.sen.clear();
+                state.kenki += sen_count * 10;
             }
             Guren => {
-                let (first, other) = need_target!(target_enemy(ActionTargetting::line(10)), p, aoe);
-                s.kenki -= 25;
+                let (first, other) = need_target!(target_enemy(ActionTargetting::line(10)), event_sink, aoe);
+                state.kenki -= 25;
                 let mut c = EventCascade::new(dl, 1);
-                p.damage(this, DamageInstance::new(500).slashing(), first, c.next());
+                event_sink.damage(this, DamageInstance::new(500).slashing(), first, c.next());
                 for t in other {
-                    p.damage(this, DamageInstance::new(375).slashing(), t, c.next());
+                    event_sink.damage(this, DamageInstance::new(375).slashing(), t, c.next());
                 }
             }
             Meikyo => {
                 // meikyo might not even have a delay i'm not sure
                 // it seems REALLY fast
-                p.apply_status(MEIKYO, 3, this_id, dl);
+                event_sink.apply_status(MEIKYO, 3, this_id, 0);
             }
             Senei => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.kenki -= 25;
-                p.damage(this, DamageInstance::new(860).slashing(), t, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.kenki -= 25;
+                event_sink.damage(this, DamageInstance::new(860).slashing(), t, dl);
             }
             Ikishoten => {
-                s.kenki += 50;
-                p.apply_status(OGI_READY, 1, this_id, dl);
+                state.kenki += 50;
+                event_sink.apply_status(OGI_READY, 1, this_id, dl);
             }
             Shoha => {
-                let t = need_target!(target_enemy(MELEE).next(), p);
-                s.meditation.clear();
-                p.damage(this, DamageInstance::new(560).slashing(), t, dl);
+                let t = need_target!(target_enemy(MELEE).next(), event_sink);
+                state.meditation.clear();
+                event_sink.damage(this, DamageInstance::new(560).slashing(), t, dl);
             }
             Shoha2 => {
-                s.meditation.clear();
+                state.meditation.clear();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    p.damage(this, DamageInstance::new(200).slashing(), t, c.next());
+                    event_sink.damage(this, DamageInstance::new(200).slashing(), t, c.next());
                 }
             }
             Namikiri => {
                 let (first, other) =
-                    need_target!(target_enemy(ActionTargetting::cone(8, 135)), p, aoe);
-                s.meditation += 1;
-                s.combos.kaeshi.set(KaeshiCombo::Namikiri);
-                consume_status(this, p, OGI_READY, 0);
+                    need_target!(target_enemy(ActionTargetting::cone(8, 135)), event_sink, aoe);
+                state.meditation += 1;
+                state.combos.kaeshi.set(KaeshiCombo::Namikiri);
+                consume_status(this, event_sink, OGI_READY, 0);
                 let mut c = EventCascade::new(dl, 1);
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(860).slashing().force_crit(),
                     first,
                     c.next(),
                 );
                 for t in other {
-                    p.damage(
+                    event_sink.damage(
                         this,
                         DamageInstance::new(215).slashing().force_crit(),
                         t,
@@ -406,12 +414,12 @@ impl Job for SamJob {
                 }
             }
             Higanbana => {
-                let t = need_target!(target_enemy(IAIJUTSU).next(), p);
-                s.meditation += 1;
-                s.combos.kaeshi.set(KaeshiCombo::Higanbana);
-                s.sen.clear();
-                p.damage(this, DamageInstance::new(200).slashing(), t, dl);
-                p.apply_dot(
+                let t = need_target!(target_enemy(IAIJUTSU).next(), event_sink);
+                state.meditation += 1;
+                state.combos.kaeshi.set(KaeshiCombo::Higanbana);
+                state.sen.clear();
+                event_sink.damage(this, DamageInstance::new(200).slashing(), t, dl);
+                event_sink.apply_dot(
                     this,
                     HIGANBANA,
                     DamageInstance::new(45).slashing(),
@@ -421,20 +429,20 @@ impl Job for SamJob {
                 );
             }
             TenkaGoken => {
-                s.meditation += 1;
-                s.combos.kaeshi.set(KaeshiCombo::Goken);
-                s.sen.clear();
+                state.meditation += 1;
+                state.combos.kaeshi.set(KaeshiCombo::Goken);
+                state.sen.clear();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
-                    p.damage(this, DamageInstance::new(300).slashing(), t, c.next());
+                    event_sink.damage(this, DamageInstance::new(300).slashing(), t, c.next());
                 }
             }
             Midare => {
-                let t = need_target!(target_enemy(IAIJUTSU).next(), p);
-                s.meditation += 1;
-                s.combos.kaeshi.set(KaeshiCombo::Setsugekka);
-                s.sen.clear();
-                p.damage(
+                let t = need_target!(target_enemy(IAIJUTSU).next(), event_sink);
+                state.meditation += 1;
+                state.combos.kaeshi.set(KaeshiCombo::Setsugekka);
+                state.sen.clear();
+                event_sink.damage(
                     this,
                     DamageInstance::new(640).slashing().force_crit(),
                     t,
@@ -442,11 +450,11 @@ impl Job for SamJob {
                 );
             }
             KaeshiHiganbana => {
-                let t = need_target!(target_enemy(IAIJUTSU).next(), p);
-                s.meditation += 1;
-                s.combos.kaeshi.reset();
-                p.damage(this, DamageInstance::new(200).slashing(), t, dl);
-                p.apply_dot(
+                let t = need_target!(target_enemy(IAIJUTSU).next(), event_sink);
+                state.meditation += 1;
+                state.combos.kaeshi.reset();
+                event_sink.damage(this, DamageInstance::new(200).slashing(), t, dl);
+                event_sink.apply_dot(
                     this,
                     HIGANBANA,
                     DamageInstance::new(45).slashing(),
@@ -456,18 +464,18 @@ impl Job for SamJob {
                 );
             }
             KaeshiGoken => {
-                s.meditation += 1;
-                s.combos.kaeshi.reset();
+                state.meditation += 1;
+                state.combos.kaeshi.reset();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
-                    p.damage(this, DamageInstance::new(300).slashing(), t, c.next());
+                    event_sink.damage(this, DamageInstance::new(300).slashing(), t, c.next());
                 }
             }
             KaeshiSetsugekka => {
-                let t = need_target!(target_enemy(IAIJUTSU).next(), p);
-                s.meditation += 1;
-                s.combos.kaeshi.reset();
-                p.damage(
+                let t = need_target!(target_enemy(IAIJUTSU).next(), event_sink);
+                state.meditation += 1;
+                state.combos.kaeshi.reset();
+                event_sink.damage(
                     this,
                     DamageInstance::new(640).slashing().force_crit(),
                     t,
@@ -476,18 +484,18 @@ impl Job for SamJob {
             }
             KaeshiNamikiri => {
                 let (first, other) =
-                    need_target!(target_enemy(ActionTargetting::cone(8, 135)), p, aoe);
-                s.meditation += 1;
-                s.combos.kaeshi.reset();
+                    need_target!(target_enemy(ActionTargetting::cone(8, 135)), event_sink, aoe);
+                state.meditation += 1;
+                state.combos.kaeshi.reset();
                 let mut c = EventCascade::new(dl, 1);
-                p.damage(
+                event_sink.damage(
                     this,
                     DamageInstance::new(860).slashing().force_crit(),
                     first,
                     c.next(),
                 );
                 for t in other {
-                    p.damage(
+                    event_sink.damage(
                         this,
                         DamageInstance::new(215).slashing().force_crit(),
                         t,
@@ -867,4 +875,21 @@ job_cd_struct! {
     shoha Shoha: Shoha Shoha2;
     "Tsubame-gaeshi"
     tsubame Tsubame: KaeshiHiganbana KaeshiGoken KaeshiSetsugekka;
+    "Meikyo Shisui Charge"
+    meikyo_chg MeikyoChg;
+}
+
+impl SamAction {
+    /// Returns the alternate [cooldown group] that this action is part of.
+    ///
+    /// Returns `None` if this action does not have an alternate cooldown.
+    /// This action is used for the 1s cooldown between uses of charged actions.
+    ///
+    /// [cooldown group]: SamCdGroup
+    pub const fn alt_cd_group(&self) -> Option<SamCdGroup> {
+        match self {
+            Self::Meikyo => Some(SamCdGroup::MeikyoChg),
+            _ => None,
+        }
+    }
 }

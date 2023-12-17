@@ -79,13 +79,14 @@ pub trait DurationInfo {
 /// This is **not** the number of charges that are being used up,
 /// but the total number of charges the action can hold.
 pub struct ActionCd {
-    cd: u32,
+    /// The inner cooldown of the cooldown group.
+    pub cooldown: u32,
 }
 
 impl ActionCd {
     /// Creates a new [`ActionCd`].
     pub const fn new() -> Self {
-        Self { cd: 0 }
+        Self { cooldown: 0 }
     }
     /// Applies a cooldown to the cooldown group.
     ///
@@ -110,7 +111,7 @@ impl ActionCd {
     /// assert!(!action_cd.available(cd, charges));
     /// ```
     pub fn apply(&mut self, cd: u32, charges: u8) {
-        self.cd = (self.cd + cd).min(cd * charges as u32)
+        self.cooldown = (self.cooldown + cd).min(cd * charges as u32)
     }
     /// Returns `true` if an action in the cooldown group can be used.
     ///
@@ -143,7 +144,7 @@ impl ActionCd {
     ///
     /// See TODO: Advance Functions for more information.
     pub fn advance(&mut self, time: u32) {
-        self.cd = self.cd.saturating_sub(time)
+        self.cooldown = self.cooldown.saturating_sub(time)
     }
     /// Returns the time until the cooldown group can be used.
     ///
@@ -168,7 +169,7 @@ impl ActionCd {
     /// assert_eq!(action_cd.cd_until(cd, charges), 15000);
     /// ```
     pub fn cd_until(&self, cd: u32, charges: u8) -> u32 {
-        self.cd.saturating_sub(cd * (charges as u32 - 1))
+        self.cooldown.saturating_sub(cd * (charges as u32 - 1))
     }
 }
 
@@ -243,7 +244,7 @@ macro_rules! job_cd_struct {
             $(#[$cdsf_meta:meta])*
             $cdsf_name:ident
             $(#[$cdgv_meta:meta])*
-            $cdgv_name:ident: $($aci:ident)+;
+            $cdgv_name:ident $(: $($aci:ident)+)?;
         )*
     ) => {
         $(#[$cds_meta])*
@@ -298,7 +299,7 @@ macro_rules! job_cd_struct {
                 $(self.$cdsf_name.advance(time);)*
             }
 
-            /// Gets the cooldown until the specified [cooldown group] can be used.
+            /// Returns the cooldown until the specified [cooldown group] can be used.
             ///
             /// [cooldown group]:
             #[doc = stringify!($cdg_id)]
@@ -312,7 +313,7 @@ macro_rules! job_cd_struct {
         }
 
         impl $acty {
-            /// Gets the [cooldown group] that this action is part of.
+            /// Returns the [cooldown group] that this action is part of.
             ///
             /// Returns `None` if this action does not have a cooldown.
             ///
@@ -321,7 +322,7 @@ macro_rules! job_cd_struct {
             pub fn cd_group(self) -> Option<$cdg_id> {
                 Some(match self {
                     $(
-                        $(Self::$aci)|+ => $cdg_id::$cdgv_name,
+                        $($(Self::$aci)|+ => $cdg_id::$cdgv_name,)?
                     )*
                     _ => return None
                 })

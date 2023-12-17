@@ -333,12 +333,12 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 /// // Constants like these are recommended to reduce boilerplate.
 /// const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);
 /// const MELEE: ActionTargetting = ActionTargetting::single(3);
-/// 
+///
 /// // A closure like this is also recommended to reduce boilerplate.
 /// let target_enemy = |t: ActionTargetting| {
 ///     src.actors_for_action(Some(Faction::Enemy), t).map(|a| a.id())
 /// };
-/// 
+///
 /// // Deal damage to targets in a circle with a radius of 5y and a range of 25y.
 /// // This aoe will have damage falloff.
 /// let (first, other) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
@@ -347,7 +347,7 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 /// for target in other {
 ///     event_sink.damage(src, DamageInstance::new(500).slashing(), target, cascade.next());
 /// }
-/// 
+///
 /// // Deal damage to a single target within a range of 3y.
 /// let target = need_target!(target_enemy(MELEE).next(), event_sink);
 /// event_sink.damage(src, DamageInstance::new(350).slashing(), target, 400);

@@ -41,12 +41,12 @@ impl<E> Bucket<E> {
 
 impl<E> RadixEventQueue<E> {
     /// Creates a new event queue.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::world::queue::RadixEventQueue;
     /// let mut queue = RadixEventQueue::<u32>::new();
-    /// 
+    ///
     /// assert!(queue.is_empty());
     /// assert_eq!(queue.pop(), None);
     /// assert_eq!(queue.time(), 0);
@@ -72,12 +72,12 @@ impl<E> RadixEventQueue<E> {
     /// ```
     /// # use xivc_core::world::queue::RadixEventQueue;
     /// let mut queue = RadixEventQueue::new();
-    /// 
+    ///
     /// queue.push(0, "first");
     /// queue.push(1, "second");
     /// queue.push(5, "fourth"); // note the reversed order here
     /// queue.push(5, "third");
-    /// 
+    ///
     /// assert_eq!(queue.pop(), Some((0, "first")));
     /// assert_eq!(queue.pop(), Some((1, "second")));
     /// assert_eq!(queue.pop(), Some((5, "third")));
@@ -133,16 +133,16 @@ impl<E> RadixEventQueue<E> {
         I::IntoIter: DoubleEndedIterator,
     {
         assert!(self.time <= time);
-        
+
         if let Some(bucket) = radix_dist(self.time, time).checked_sub(1) {
             // iterate through the events backwards.
             for event in events.into_iter().rev() {
                 // radix_dist always returns a value in 0..=32
                 self.buckets[bucket as usize].push(time, event);
-                
+
                 // !!! This is done here to make sure the queue is in a consistent state
                 //     in case the iterator panics
-                
+
                 // if the event was not added to the first bucket,
                 // set the filled bit for that bucket.
                 self.filled |= 1 << bucket;
@@ -190,19 +190,19 @@ impl<E> RadixEventQueue<E> {
     }
 
     /// Returns the [current time] of the event queue.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::world::queue::RadixEventQueue;
     /// let mut queue = RadixEventQueue::new();
     /// queue.push(10, ());
     /// queue.push(5, ());
-    /// 
+    ///
     /// assert_eq!(queue.time(), 0);
-    /// 
+    ///
     /// queue.pop();
     /// assert_eq!(queue.time(), 5);
-    /// 
+    ///
     /// queue.pop();
     /// assert_eq!(queue.time(), 10);
     /// ```
@@ -213,24 +213,24 @@ impl<E> RadixEventQueue<E> {
     }
 
     /// Returns `true` if the event queue is empty.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::world::queue::RadixEventQueue;
     /// let mut queue = RadixEventQueue::new();
-    /// 
+    ///
     /// assert!(queue.is_empty());
-    /// 
+    ///
     /// queue.push(3, "A");
     /// assert!(!queue.is_empty());
-    /// 
+    ///
     /// queue.pop();
     /// assert!(queue.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
         self.head.is_empty() && self.filled == 0
     }
-    
+
     // Advances the time to the next present time
     // and reassigns events accordingly
     fn reassign(&mut self) {
@@ -292,6 +292,13 @@ impl<'a, E> Iterator for DrainTop<'a, E> {
 
 impl<'a, E> ExactSizeIterator for DrainTop<'a, E> {}
 impl<'a, E> FusedIterator for DrainTop<'a, E> {}
+
+impl<'a, E> DoubleEndedIterator for DrainTop<'a, E> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let (_, e) = self.inner.next()?;
+        Some(e)
+    }
+}
 
 impl<E> Default for RadixEventQueue<E> {
     fn default() -> Self {

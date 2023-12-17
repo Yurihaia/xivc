@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     enums::DamageInstance,
-    job::{Job, JobState},
+    job::{CastInitInfo, Job, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
@@ -17,8 +17,6 @@ use crate::{
         Positional, World,
     },
 };
-
-use super::CastInitInfo;
 
 /// The [`Job`] struct for Reaper.
 #[derive(Clone, Copy, Debug, Default)]
@@ -148,6 +146,7 @@ impl Job for RprJob {
             lock,
             snap,
             cd,
+            alt_cd: None,
         }
     }
 
@@ -343,11 +342,11 @@ impl Job for RprJob {
                 state.shroud += 10;
             }
             ArcaneCircle => {
-                let mut c = EventCascade::new(dl, 3);
-                for t in this
+                let iter = this
                     .actors_for_action(Some(Faction::Party), ActionTargetting::circle(30))
-                    .map(|a| a.id())
-                {
+                    .map(|a| a.id());
+                let mut c = EventCascade::new(dl, 3);
+                for t in iter {
                     let dl = c.next();
                     event_sink.apply_status(ARCANE_CIRCLE, 1, t, dl);
                     event_sink.apply_status(CIRCLE_SACRIFICE, 1, t, dl);
@@ -522,7 +521,7 @@ impl Job for RprJob {
 pub enum RprError {
     /// Not enough Soul gauge.
     Soul(u8),
-    /// Not enough Shroud Gauge.
+    /// Not enough Shroud gauge.
     Shroud(u8),
     /// Not under the effect of Soulsow.
     Soulsow,

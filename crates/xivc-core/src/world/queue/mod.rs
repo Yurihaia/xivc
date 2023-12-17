@@ -47,6 +47,8 @@
 //! [`RadixEventQueue`]: radix::RadixEventQueue
 //! [`World`]: super::World
 
+#[cfg(feature = "alloc")]
 pub mod radix;
 
+#[cfg(feature = "alloc")]
 pub use radix::RadixEventQueue;

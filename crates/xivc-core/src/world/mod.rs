@@ -13,10 +13,7 @@
 
 pub mod status;
 
-#[cfg(feature = "alloc")]
 pub mod queue;
-
-use rand_core::RngCore;
 
 use crate::{enums::DamageInstance, job, math::EotSnapshot, timing::DurationInfo};
 
@@ -106,6 +103,9 @@ pub trait Actor<'w>: 'w {
         targetting: ActionTargetting,
     ) -> <Self::World as World>::ActorIter<'w>;
 
+    /// Returns `true` if the other actor is within the specified action targetting range.
+    fn within_range(&self, other: ActorId, targetting: ActionTargetting) -> bool;
+
     /// Returns the [`Faction`] the actor is part of.
     fn faction(&self) -> Faction;
     /// Returns `true` if a [`Positional`] requirement would be met
@@ -148,9 +148,9 @@ pub trait EventProxy {
     /// Submits an error into the event proxy.
     fn error(&mut self, error: EventError);
     /// Submits an event into the event proxy to be executed after a specified delay.
-    /// 
+    ///
     /// <div class="warning" id="orderwarning">
-    /// 
+    ///
     /// The order in which events with the same `delay` will be executed is the
     /// opposite of the order they were submitted in. You must be careful if the effect
     /// of an event depends on other events.
@@ -159,19 +159,19 @@ pub trait EventProxy {
     /// However, this ordering may be useful. For example, the [`Job::event`] function can
     /// submit events with a delay of `0`, and those events will be guaranteed to be executed
     /// before any events currently awaiting execution.
-    /// 
+    ///
     /// </div>
-    /// 
+    ///
     /// [`events_ordered`]: EventProxy::events_ordered
     /// [`Job::event`]: crate::job::Job::event
     fn event(&mut self, event: Event, delay: u32);
     /// Submits a sequence of events to be executed in order.
-    /// 
+    ///
     /// Because of the [warning] in [`event`], the default implementation
     /// is to insert these events in the reverse order, hence the [`DoubleEndedIterator`]
     /// bound. However, note that the ordering between multiple calls to this function
     /// will result in the latter call's events being executed first.
-    /// 
+    ///
     /// [warning]: EventProxy#orderwarning
     /// [`event`]: EventProxy::event
     fn events_ordered<I>(&mut self, events: I, delay: u32)
@@ -183,11 +183,11 @@ pub trait EventProxy {
             self.event(event, delay);
         }
     }
-    /// Returns an RNG for use in event processing.
-    /// 
-    /// This RNG may return completely fabricated results, and as such
-    /// the output should not be relied upon to have any specific property.
-    fn rng(&mut self) -> &mut impl RngCore;
+
+    /// Returns a random [`bool`] with a certain probability of being `true`.
+    ///
+    /// The probability is scaled by `1000`, meaning a 50% chance is `500`.
+    fn random_bool(&mut self, probability: u16) -> bool;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -212,7 +212,7 @@ pub enum Event {
     Status(StatusEvent),
     Job(job::JobEvent),
     MpTick(ActorId),
-    DotTick(ActorId),
+    ActorTick(ActorId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

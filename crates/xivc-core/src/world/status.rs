@@ -224,6 +224,37 @@ pub trait JobEffect: Debug {
     }
 }
 
+#[macro_export]
+/// Creates a named wrapper around a job's state that can implement
+/// [`JobEffect`].
+///
+/// This `struct` must be `#[repr(transparent)]`, but otherwise,
+/// no other attributes are applied by default.
+///
+/// TODO: More docs.
+macro_rules! job_effect_wrapper {
+    (
+        $(#[$m:meta])*
+        $v:vis struct $etyid:ident ( $fv:vis $stty:ty );
+    ) => {
+        #[repr(transparent)]
+        $(#[$m])*
+        $v struct $etyid( $fv $stty );
+        impl $etyid where Self: $crate::world::status::JobEffect {
+            /// Creates a new `&dyn JobEffect` from a reference to a job's state struct,
+            /// using the functions defined by this struct's `JobEffect` implementation.
+            ///
+            /// TODO: More docs.
+            pub const fn new<'a>(value: &'a $stty) -> &'a dyn $crate::world::status::JobEffect {
+                // Safety: `ArmysJobEffect` is `repr(transparent)`
+                // and the lifetimes are the same,
+                // so the resulting reference is valid.
+                (unsafe { &*(value as *const _ as *const Self) }) as _
+            }
+        }
+    };
+}
+
 #[derive(Debug)]
 /// A snapshot of the statuses for some event.
 pub struct StatusSnapshot<'a> {
@@ -415,18 +446,18 @@ pub type SpeedModifierFn = fn(status: StatusInstance) -> u64;
 ///                 120 / 100
 ///         }
 ///         // This `crit` keyword means that the following modifier
-///         // will increase the critical hit rate.
+///         // will increase the critical hit rate, scaled by 1000.
 ///         crit {
 ///             // Again, this means that the outgoing critical hit rate
 ///             // will be increased by 20%. This modifier will always be
 ///             // multiplicative, and caps at 100%.
-///             out = 20
+///             out = 200
 ///         }
 ///         // This `haste` keyword will modify the gcd cast and recast speed,
 ///         // as well as auto-attack frequency. Unlike damage, everything inside
 ///         // the braces is a single expression. This is a multiplier for the
 ///         // gcd speed. `100 - 13` is how we would write a 13% haste buff.
-///         haste { 100 - 13 }
+///         haste { |_| 100 - 13 }
 ///         // Other options for modifiers are `dhit` which functions
 ///         // like `crit`, but for direct hit, as well as `stats`,
 ///         // which is used for Potions and Food. This modifier takes
@@ -496,7 +527,7 @@ macro_rules! __status_effect_inner {
         $crate::__status_effect_inner!(modfn $k $e)
     };
     (vm stats { $e:expr }) => { Some($e) };
-    (vm haste { $e:expr }) => { Some(|_| $e) };
+    (vm haste { $e:expr }) => { Some($e) };
     (modfn in $($t:tt)*) => { $crate::world::status::ValueModifier::incoming($($t)*) };
     (modfn out $($t:tt)*) => { $crate::world::status::ValueModifier::outgoing($($t)*) };
 }
@@ -647,7 +678,7 @@ impl StatusEvent {
     /// Applies a status effect or extends the duration if it already exists on a target actor.
     ///
     /// The number of `stacks` will be overwritten. To add stacks, use [`apply_or_add_stacks`].
-    /// 
+    ///
     /// [`apply_or_add_stacks`]: StatusEvent::apply_or_add_stacks
     pub const fn apply_or_extend(
         status: StatusEffect,
@@ -669,7 +700,7 @@ impl StatusEvent {
     ///
     /// The number of `stacks` will be added to the effect instance if it already exists. The duration
     /// will be unchanged. If you need to refresh the duration, use [`apply_or_extend`].
-    /// 
+    ///
     /// [`apply_or_extend`]: StatusEvent::apply_or_extend
     pub const fn apply_or_add_stacks(
         status: StatusEffect,
@@ -775,7 +806,7 @@ pub trait StatusEventExt: EventProxy {
     /// Applies a status effect or extends the duration if it already exists on a target actor.
     ///
     /// The number of `stacks` will be overwritten. To add stacks, use [`apply_or_add_stacks`].
-    /// 
+    ///
     /// [`apply_or_add_stacks`]: StatusEventExt::apply_or_add_stacks
     fn apply_or_extend_status(
         &mut self,
@@ -794,7 +825,7 @@ pub trait StatusEventExt: EventProxy {
     ///
     /// The number of `stacks` will be added to the effect instance if it already exists. The duration
     /// will be unchanged. If you need to refresh the duration, use [`apply_or_extend_status`].
-    /// 
+    ///
     /// [`apply_or_extend_status`]: StatusEventExt::apply_or_extend_status
     fn apply_or_add_stacks(
         &mut self,

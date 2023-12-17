@@ -19,6 +19,8 @@ use crate::world::{status::JobEffect, Event, EventProxy, World};
 /// Logic and types for Samurai.
 pub mod sam;
 /// Logic and types for Reaper.
+pub mod brd;
+/// Logic and types for Reaper.
 pub mod rpr;
 
 /// A set of logic for working with jobs in a uniform way.
@@ -40,7 +42,7 @@ pub trait Job {
     /// * A gauge cost not being fulfilled.
     /// * An "(Action) Ready" status not being present.
     /// or various other requirements action have to be cast.
-    type CastError: Display + Debug;
+    type CastError: Display + Debug + 'static;
     /// A custom event this job can use.
     ///
     /// This will typically be used to schedule things
@@ -48,7 +50,7 @@ pub trait Job {
     /// Bard "Repertoire" procs will need to use this.
     ///
     /// This should be `()` for any job that does not need a custom event.
-    type Event: Clone + Debug;
+    type Event: Clone + Debug + 'static;
     /// The cooldown groups for this job's actions.
     type CdGroup: Copy + Debug + 'static;
 
@@ -61,7 +63,7 @@ pub trait Job {
         action: Self::Action,
         state: &Self::State,
         world: &'w W,
-        src: &'w W::Actor<'w>,
+        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup>;
 
@@ -98,7 +100,7 @@ pub trait Job {
         action: Self::Action,
         state: &mut Self::State,
         world: &'w W,
-        src: &'w W::Actor<'w>,
+        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     );
 
@@ -175,6 +177,13 @@ pub struct CastInitInfo<C: 'static> {
     /// Note that the charges is **not** the number of charges to consume.
     /// This value is part of the cooldown to apply.
     pub cd: Option<(C, u32, u8)>,
+    /// The alternate cooldown group for the action to apply.
+    ///
+    /// The items in the tuple are the same as the [`cd`] field.
+    /// This field is used for the 1s cooldown between uses of a charged action.
+    ///
+    /// [`cd`]: CastInitInfo::cd
+    pub alt_cd: Option<(C, u32, u8)>,
 }
 
 macro_rules! helper {
@@ -293,4 +302,5 @@ macro_rules! helper {
 helper! {
     SAM Sam sam::SamJob { "Samurai" }
     RPR Rpr rpr::RprJob { "Reaper" }
+    BRD Brd brd::BrdJob { "Bard" }
 }
