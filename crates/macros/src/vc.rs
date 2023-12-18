@@ -3,13 +3,16 @@ use std::collections::HashMap;
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
+    braced,
     parse::{Parse, ParseStream, Parser},
-    Attribute, Expr, Fields, ItemEnum, Meta, Token, Type, Visibility,
+    token, Attribute, Expr, Fields, ItemEnum, Meta, Token, Type, Visibility,
 };
 
 pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let mut item: ItemEnum = syn::parse2(item)?;
     let item_name = &item.ident;
+
+    let mut other = TokenStream::new();
 
     // done to preserve const ordering, which is noticable in documentation.
     let (mut consts, names) = Parser::parse2(
@@ -41,56 +44,81 @@ pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<Token
             let var_id = &x.ident;
             if let Some(id) = a.path().get_ident().cloned() {
                 if let Some(i) = names.get(&id) {
-                    if let Meta::List(..) = &a.meta {
-                        return Err(syn::Error::new(
-                            a.bracket_token.span.join(),
-                            format!("cannot use a list attribute for `{}`.", id),
-                        ));
-                    }
+                    // if let Meta::List(list) = &a.meta {
+
+                    //     return Err(syn::Error::new(
+                    //         a.bracket_token.span.join(),
+                    //         format!("cannot use a list attribute for `{}`.", id),
+                    //     ));
+                    // }
                     let (c, cs) = &mut consts[*i];
                     match &c.item_type {
-                        ConstType::Flag { proxy } => match a.meta {
+                        ConstType::Flag { proxy, .. } => match a.meta {
                             Meta::Path(_) => {
-                                if let Some((_, real, _, def)) = proxy {
-                                    let def = def.clone();
-                                    let mut real = real.clone();
-                                    real.set_span(id.span());
-                                    let Some((src, cs)) = names.get(&real).map(|v| &mut consts[*v])
-                                    else {
-                                        let msg = format!("unknown constant name `{}`", real);
-                                        return Err(syn::Error::new_spanned(real, msg));
-                                    };
-                                    let ret = match &src.item_type {
-                                        ConstType::Value { optional, .. } => {
-                                            if optional.is_some() {
-                                                quote! { ::core::option::Option::Some( #def ) }
-                                            } else {
-                                                quote! { #def }
+                                if let Some((_, _, proxies)) = proxy {
+                                    for ProxyInstance {
+                                        id: mut real,
+                                        val: def,
+                                        ..
+                                    } in proxies.clone()
+                                    {
+                                        real.set_span(id.span());
+                                        let Some((src, cs)) =
+                                            names.get(&real).map(|v| &mut consts[*v])
+                                        else {
+                                            let msg = format!("unknown constant name `{}`", real);
+                                            return Err(syn::Error::new_spanned(real, msg));
+                                        };
+                                        let ret = match &src.item_type {
+                                            ConstType::Value { optional, .. } => {
+                                                if optional.is_some() {
+                                                    quote! { ::core::option::Option::Some( #def ) }
+                                                } else {
+                                                    quote! { #def }
+                                                }
                                             }
-                                        }
-                                        ConstType::Flag { proxy } => {
-                                            if proxy.is_some() {
-                                                let msg = format!("cannot create a proxy constant for proxy constant `{}`", real);
-                                                return Err(syn::Error::new_spanned(id, msg));
+                                            ConstType::Flag { proxy, .. } => {
+                                                if proxy.is_some() {
+                                                    let msg = format!("cannot create a proxy constant for proxy constant `{}`", real);
+                                                    return Err(syn::Error::new_spanned(id, msg));
+                                                }
+                                                quote! { true }
                                             }
-                                            quote! { true }
-                                        }
-                                    };
-                                    cs.extend(quote! {
-                                        Self::#var_id #skip => {
-                                            let _ = Self::#real;
-                                            #ret
-                                        }
-                                    });
+                                        };
+                                        cs.extend(quote! {
+                                            Self::#var_id #skip => {
+                                                let _ = Self::#real;
+                                                #ret
+                                            }
+                                        });
+                                    }
                                 } else {
                                     cs.extend(quote! {
                                         Self::#var_id #skip => {
-                                             // gives r-a hover info. such a dumb hack
+                                            // gives r-a hover info. such a dumb hack
                                             let _ = Self::#id;
                                             true
                                         }
                                     });
                                 }
+                            }
+                            Meta::List(list) => {
+                                if proxy.is_some() {
+                                    return Err(syn::Error::new(
+                                        a.bracket_token.span.join(),
+                                        format!(
+                                            "cannot use a list attribute for proxy const `{}`",
+                                            id
+                                        ),
+                                    ));
+                                }
+                                let tokens = list.tokens;
+                                cs.extend(quote! { Self::#var_id #tokens , });
+                                other.extend(quote! {
+                                    const _: () = {
+                                        let _ = #item_name :: #id;
+                                    };
+                                });
                             }
                             _ => {
                                 return Err(syn::Error::new(
@@ -119,6 +147,15 @@ pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<Token
                                     format!("cannot use a flag attribute for `{}`", id),
                                 ));
                             }
+                            Meta::List(list) => {
+                                let tokens = list.tokens;
+                                cs.extend(quote! { Self::#var_id #tokens , });
+                                other.extend(quote! {
+                                    const _: () = {
+                                        let _ = #item_name :: #id;
+                                    };
+                                });
+                            }
                             Meta::NameValue(nv) => {
                                 let val = nv.value;
                                 if optional.is_some() {
@@ -137,7 +174,6 @@ pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<Token
                                     });
                                 }
                             }
-                            _ => unreachable!(),
                         },
                     }
                     continue;
@@ -147,8 +183,6 @@ pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<Token
         }
         x.attrs = kept;
     }
-
-    let mut other = TokenStream::new();
 
     let ci = consts
         .into_iter()
@@ -182,14 +216,17 @@ pub fn var_const_impl(attr: TokenStream, item: TokenStream) -> syn::Result<Token
                     };
                     (ret, def)
                 }
-                ConstType::Flag { proxy } => {
-                    if let Some((_, real, _, _)) = proxy {
-                        // again, for r-a hover info.
-                        other.extend(quote! {
-                            const _: () = {
-                                let _ = #item_name :: #real;
-                            };
-                        });
+                ConstType::Flag { proxy, .. } => {
+                    if let Some((_, _, proxies)) = proxy {
+                        for x in proxies {
+                            let real = x.id;
+                            // again, for r-a hover info.
+                            other.extend(quote! {
+                                const _: () = {
+                                    let _ = #item_name :: #real;
+                                };
+                            });
+                        }
                         return TokenStream::new();
                     }
                     let ret = quote! { bool };
@@ -245,9 +282,11 @@ enum ConstType {
         ty: Type,
         optional: Option<Token![?]>,
         default: Option<(Token![=], Expr)>,
+        _semi: Token![;],
     },
     Flag {
-        proxy: Option<(Token![for], Ident, Token![=], Expr)>,
+        proxy: Option<(Token![for], token::Brace, Vec<ProxyInstance>)>,
+        _semi: Option<Token![;]>,
     },
 }
 
@@ -267,23 +306,53 @@ impl Parse for ConstType {
                         None
                     }
                 },
+                _semi: input.parse()?,
             })
         } else {
+            let proxy;
             Ok(Self::Flag {
                 proxy: {
                     let l = input.lookahead1();
                     if l.peek(Token![for]) {
-                        Some((
-                            input.parse()?,
-                            input.parse()?,
-                            input.parse()?,
-                            input.parse()?,
-                        ))
+                        proxy = true;
+                        let content;
+                        Some((input.parse()?, braced!(content in input), {
+                            let mut items = Vec::new();
+                            while !content.is_empty() {
+                                items.push(content.parse()?);
+                            }
+                            items
+                        }))
                     } else {
+                        proxy = false;
                         None
                     }
                 },
+                _semi: if proxy {
+                    input.parse()?
+                } else {
+                    Some(input.parse()?)
+                },
             })
         }
+    }
+}
+
+#[derive(Clone)]
+struct ProxyInstance {
+    id: Ident,
+    _eq: Token![=],
+    val: Expr,
+    _semi: Token![;],
+}
+
+impl Parse for ProxyInstance {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(Self {
+            id: input.parse()?,
+            _eq: input.parse()?,
+            val: input.parse()?,
+            _semi: input.parse()?,
+        })
     }
 }

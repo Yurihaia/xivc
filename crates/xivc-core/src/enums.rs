@@ -13,9 +13,9 @@ use crate::math::ActionStat;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[var_consts {
     /// Returns the human readable name of the clan's base race.
-    pub const race_name: &'static str
+    pub const race_name: &'static str;
     /// Returns the human readable name of the clan.
-    pub const clan_name: &'static str
+    pub const clan_name: &'static str;
 }]
 /// Clans that a character can be.
 pub enum Clan {
@@ -95,21 +95,21 @@ impl Display for Clan {
 #[allow(clippy::upper_case_acronyms)] // this is literally the way FF14 does it so I'm not gonna change it :)))
 #[var_consts {
     /// Returns `true` if the job is a tank.
-    pub const tank
+    pub const tank;
     /// Returns `true` if the job is a healer.
-    pub const healer
+    pub const healer;
     /// Returns `true` if the job is a melee DPS.
-    pub const melee
+    pub const melee;
     /// Returns `true` if the job is a physical ranged DPS.
-    pub const ranged
+    pub const ranged;
     /// Returns `true` if the job is a magical ranged DPS.
-    pub const caster
+    pub const caster;
     /// Returns `true` if the job is a limited job.
-    pub const limited
+    pub const limited;
     /// Returns `true` if the job has an associated soul crystal.
-    pub const job: bool = true
+    pub const job: bool = true;
     /// Returns the human friendly name of the job.
-    pub const name: &'static str
+    pub const name: &'static str;
 }]
 /// Jobs that a character can be.
 pub enum Job {
@@ -274,11 +274,11 @@ pub enum DamageElement {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[var_consts {
     /// Returns `true` if the damage type is physical.
-    pub const physical
+    pub const physical;
     /// Returns `true` if the damage type is magical.
-    pub const magical
+    pub const magical;
     /// Returns `true` if the damage type is unique.
-    pub const unique
+    pub const unique;
 }]
 /// The types that damage can be.
 pub enum DamageType {
@@ -302,6 +302,7 @@ pub enum DamageType {
     Unique,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 /// A instance of premodified damage.
 pub struct DamageInstance {
@@ -455,5 +456,29 @@ impl DamageInstance {
     pub const fn force_dhit(mut self) -> Self {
         self.force_dh = true;
         self
+    }
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+/// The category an action is in.
+#[allow(missing_docs)]
+pub enum ActionCategory {
+    AutoAttack,
+    Spell,
+    Weaponskill,
+    Ability,
+    Item,
+    LimitBreak,
+    System,
+}
+
+impl ActionCategory {
+    /// Returns `true` if the category is a weaponskill or a spell.
+    pub const fn skill_or_spell(&self) -> bool {
+        match self {
+            Self::Weaponskill | Self::Spell => true,
+            _ => false,
+        }
     }
 }

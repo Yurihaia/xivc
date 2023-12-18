@@ -6,19 +6,19 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    enums::DamageInstance,
+    enums::{ActionCategory, DamageInstance},
     job::{Job, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, consume_status_stack, StatusEffect, StatusEventExt},
-        ActionTargetting, Actor, DamageEventExt, EventError, EventProxy, Faction, Positional,
-        World,
+        Action, ActionTargetting, Actor, DamageEventExt, EventError, EventSink, Faction,
+        Positional, World,
     },
 };
 
-use super::CastInitInfo;
+use super::{role::MeleeRoleAction, CastInitInfo, JobAction};
 
 // so i can be lazy with associated constant derives
 #[derive(Copy, Clone, Debug, Default)]
@@ -49,13 +49,14 @@ impl Job for SamJob {
     type Event = ();
     type CdGroup = SamCdGroup;
 
-    fn check_cast<'w, E: EventProxy, W: World>(
+    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
-        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
+        let this = event_sink.source();
+
         let di = this.duration_info();
 
         let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
@@ -64,7 +65,7 @@ impl Job for SamJob {
         let cd = action
             .cd_group()
             .map(|v| (v, action.cooldown(), action.cd_charges()));
-        
+
         let alt_cd = action.alt_cd_group().map(|v| (v, 1000, 1));
 
         // check errors
@@ -124,24 +125,24 @@ impl Job for SamJob {
         state.cds.apply(group, cooldown, charges);
     }
 
-    fn cast_snap<'w, P: EventProxy, W: World>(
+    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
-        _: &W,
-        this: &'w W::Actor<'w>,
-        event_sink: &mut P,
+        _: &'w W,
+        event_sink: &mut E,
     ) {
+        let this = event_sink.source();
+        let this_id = this.id();
+
         use SamAction::*;
         let target_enemy = |t: ActionTargetting| {
             this.actors_for_action(Some(Faction::Enemy), t)
                 .map(|a| a.id())
         };
 
-        let consume_meikyo = |p: &mut P| consume_status_stack(this, p, MEIKYO, 0);
+        let consume_meikyo = |p: &mut E| consume_status_stack(p, MEIKYO, 0);
 
         let dl = action.effect_delay();
-
-        let this_id = this.id();
 
         match action {
             Hakaze => {
@@ -150,7 +151,7 @@ impl Job for SamJob {
                 consume_meikyo(event_sink);
                 state.combos.main.set(MainCombo::Hakaze);
                 state.kenki += 5;
-                event_sink.damage(this, DamageInstance::new(200).slashing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(200).slashing(), t, dl);
             }
             Jinpu => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
@@ -166,7 +167,7 @@ impl Job for SamJob {
                     false
                 };
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(combo_pot(120, 280, combo)).slashing(),
                     t,
                     dl,
@@ -186,7 +187,7 @@ impl Job for SamJob {
                     false
                 };
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(combo_pot(120, 280, combo)).slashing(),
                     t,
                     dl,
@@ -204,7 +205,7 @@ impl Job for SamJob {
                     false
                 };
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(combo_pot(120, 300, combo)).slashing(),
                     t,
                     dl,
@@ -227,7 +228,7 @@ impl Job for SamJob {
                 }
                 let pos = this.check_positional(Positional::Rear, t);
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(combo_pos_pot(120, 170, 330, 380, combo, pos)).slashing(),
                     t,
                     dl,
@@ -250,7 +251,7 @@ impl Job for SamJob {
                 }
                 let pos = this.check_positional(Positional::Rear, t);
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(combo_pos_pot(120, 170, 330, 380, combo, pos)).slashing(),
                     t,
                     dl,
@@ -264,7 +265,7 @@ impl Job for SamJob {
                 let mut hit = false;
                 for t in target_enemy(CIRCLE) {
                     hit = true;
-                    event_sink.damage(this, DamageInstance::new(100).slashing(), t, c.next());
+                    event_sink.damage(action, DamageInstance::new(100).slashing(), t, c.next());
                 }
                 if hit {
                     state.combos.main.set(MainCombo::Fuko);
@@ -287,7 +288,7 @@ impl Job for SamJob {
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     event_sink.damage(
-                        this,
+                        action,
                         DamageInstance::new(combo_pot(100, 120, combo)).slashing(),
                         t,
                         c.next(),
@@ -309,7 +310,7 @@ impl Job for SamJob {
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
                     event_sink.damage(
-                        this,
+                        action,
                         DamageInstance::new(combo_pot(100, 120, combo)).slashing(),
                         t,
                         c.next(),
@@ -320,9 +321,9 @@ impl Job for SamJob {
             Enpi => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
                 state.kenki += 10;
-                let en_enpi = consume_status(this, event_sink, ENENPI, 0);
+                let en_enpi = consume_status(event_sink, ENENPI, 0);
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(if en_enpi { 260 } else { 100 }).slashing(),
                     t,
                     dl,
@@ -331,24 +332,24 @@ impl Job for SamJob {
             Shinten => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.kenki -= 25;
-                event_sink.damage(this, DamageInstance::new(250).slashing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(250).slashing(), t, dl);
             }
             Kyuten => {
                 state.kenki -= 25;
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    event_sink.damage(this, DamageInstance::new(120).slashing(), t, c.next());
+                    event_sink.damage(action, DamageInstance::new(120).slashing(), t, c.next());
                 }
             }
             Gyoten => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
                 state.kenki -= 10;
-                event_sink.damage(this, DamageInstance::new(100).slashing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).slashing(), t, dl);
             }
             Yaten => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.kenki -= 10;
-                event_sink.damage(this, DamageInstance::new(100).slashing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).slashing(), t, dl);
                 event_sink.apply_status(ENENPI, 1, this_id, dl);
             }
             Hagakure => {
@@ -357,12 +358,13 @@ impl Job for SamJob {
                 state.kenki += sen_count * 10;
             }
             Guren => {
-                let (first, other) = need_target!(target_enemy(ActionTargetting::line(10)), event_sink, aoe);
+                let (first, other) =
+                    need_target!(target_enemy(ActionTargetting::line(10)), event_sink, aoe);
                 state.kenki -= 25;
                 let mut c = EventCascade::new(dl, 1);
-                event_sink.damage(this, DamageInstance::new(500).slashing(), first, c.next());
+                event_sink.damage(action, DamageInstance::new(500).slashing(), first, c.next());
                 for t in other {
-                    event_sink.damage(this, DamageInstance::new(375).slashing(), t, c.next());
+                    event_sink.damage(action, DamageInstance::new(375).slashing(), t, c.next());
                 }
             }
             Meikyo => {
@@ -373,7 +375,7 @@ impl Job for SamJob {
             Senei => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.kenki -= 25;
-                event_sink.damage(this, DamageInstance::new(860).slashing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(860).slashing(), t, dl);
             }
             Ikishoten => {
                 state.kenki += 50;
@@ -382,31 +384,34 @@ impl Job for SamJob {
             Shoha => {
                 let t = need_target!(target_enemy(MELEE).next(), event_sink);
                 state.meditation.clear();
-                event_sink.damage(this, DamageInstance::new(560).slashing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(560).slashing(), t, dl);
             }
             Shoha2 => {
                 state.meditation.clear();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(CIRCLE) {
-                    event_sink.damage(this, DamageInstance::new(200).slashing(), t, c.next());
+                    event_sink.damage(action, DamageInstance::new(200).slashing(), t, c.next());
                 }
             }
             Namikiri => {
-                let (first, other) =
-                    need_target!(target_enemy(ActionTargetting::cone(8, 135)), event_sink, aoe);
+                let (first, other) = need_target!(
+                    target_enemy(ActionTargetting::cone(8, 135)),
+                    event_sink,
+                    aoe
+                );
                 state.meditation += 1;
                 state.combos.kaeshi.set(KaeshiCombo::Namikiri);
-                consume_status(this, event_sink, OGI_READY, 0);
+                event_sink.remove_status(OGI_READY, this_id, 0);
                 let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(860).slashing().force_crit(),
                     first,
                     c.next(),
                 );
                 for t in other {
                     event_sink.damage(
-                        this,
+                        action,
                         DamageInstance::new(215).slashing().force_crit(),
                         t,
                         c.next(),
@@ -418,15 +423,8 @@ impl Job for SamJob {
                 state.meditation += 1;
                 state.combos.kaeshi.set(KaeshiCombo::Higanbana);
                 state.sen.clear();
-                event_sink.damage(this, DamageInstance::new(200).slashing(), t, dl);
-                event_sink.apply_dot(
-                    this,
-                    HIGANBANA,
-                    DamageInstance::new(45).slashing(),
-                    1,
-                    t,
-                    dl,
-                );
+                event_sink.damage(action, DamageInstance::new(200).slashing(), t, dl);
+                event_sink.apply_dot(HIGANBANA, DamageInstance::new(45).slashing(), 1, t, dl);
             }
             TenkaGoken => {
                 state.meditation += 1;
@@ -434,7 +432,7 @@ impl Job for SamJob {
                 state.sen.clear();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
-                    event_sink.damage(this, DamageInstance::new(300).slashing(), t, c.next());
+                    event_sink.damage(action, DamageInstance::new(300).slashing(), t, c.next());
                 }
             }
             Midare => {
@@ -443,7 +441,7 @@ impl Job for SamJob {
                 state.combos.kaeshi.set(KaeshiCombo::Setsugekka);
                 state.sen.clear();
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(640).slashing().force_crit(),
                     t,
                     dl,
@@ -453,22 +451,15 @@ impl Job for SamJob {
                 let t = need_target!(target_enemy(IAIJUTSU).next(), event_sink);
                 state.meditation += 1;
                 state.combos.kaeshi.reset();
-                event_sink.damage(this, DamageInstance::new(200).slashing(), t, dl);
-                event_sink.apply_dot(
-                    this,
-                    HIGANBANA,
-                    DamageInstance::new(45).slashing(),
-                    1,
-                    t,
-                    dl,
-                );
+                event_sink.damage(action, DamageInstance::new(200).slashing(), t, dl);
+                event_sink.apply_dot(HIGANBANA, DamageInstance::new(45).slashing(), 1, t, dl);
             }
             KaeshiGoken => {
                 state.meditation += 1;
                 state.combos.kaeshi.reset();
                 let mut c = EventCascade::new(dl, 1);
                 for t in target_enemy(ActionTargetting::circle(8)) {
-                    event_sink.damage(this, DamageInstance::new(300).slashing(), t, c.next());
+                    event_sink.damage(action, DamageInstance::new(300).slashing(), t, c.next());
                 }
             }
             KaeshiSetsugekka => {
@@ -476,33 +467,37 @@ impl Job for SamJob {
                 state.meditation += 1;
                 state.combos.kaeshi.reset();
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(640).slashing().force_crit(),
                     t,
                     dl,
                 );
             }
             KaeshiNamikiri => {
-                let (first, other) =
-                    need_target!(target_enemy(ActionTargetting::cone(8, 135)), event_sink, aoe);
+                let (first, other) = need_target!(
+                    target_enemy(ActionTargetting::cone(8, 135)),
+                    event_sink,
+                    aoe
+                );
                 state.meditation += 1;
                 state.combos.kaeshi.reset();
                 let mut c = EventCascade::new(dl, 1);
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(860).slashing().force_crit(),
                     first,
                     c.next(),
                 );
                 for t in other {
                     event_sink.damage(
-                        this,
+                        action,
                         DamageInstance::new(215).slashing().force_crit(),
                         t,
                         c.next(),
                     );
                 }
             }
+            Role(action) => action.cast(event_sink),
         }
     }
 }
@@ -524,8 +519,8 @@ pub enum SamError {
     OgiRdy,
 }
 impl SamError {
-    /// Submits the cast error into the [`EventProxy`].
-    pub fn submit(self, p: &mut impl EventProxy) {
+    /// Submits the cast error into the [`EventSink`].
+    pub fn submit<'w, W: World>(self, p: &mut impl EventSink<'w, W>) {
         p.error(self.into())
     }
 }
@@ -559,28 +554,37 @@ const CIRCLE: ActionTargetting = ActionTargetting::circle(5);
     derive(Serialize, Deserialize),
     serde(rename_all = "snake_case")
 )]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 #[var_consts {
     /// Returns `true` if the action uses tsubame gaeshi.
-    pub const tsubame
+    pub const tsubame;
     /// Returns the base GCD recast time, or `None` if the action is not a gcd.
-    pub const gcd: ScaleTime?
-    pub const skill for gcd = ScaleTime::skill(2500)
+    pub const gcd: ScaleTime?;
     /// Returns the base milliseconds the action takes to cast.
-    pub const cast: ScaleTime = ScaleTime::zero()
+    pub const cast: ScaleTime = ScaleTime::zero();
     /// Returns the human friendly name of the action.
-    pub const name: &'static str
+    pub const name: &'static str;
     /// Returns the cooldown of the skill in milliseconds.
-    pub const cooldown: u32 = 0
+    pub const cooldown: u32 = 0;
     /// Returns the number of charges a skill has, or `1` if it is a single charge skill.
-    pub const cd_charges: u8 = 1
+    pub const cd_charges: u8 = 1;
     /// Returns the delay in milliseconds for the damage/statuses to be applied.
-    pub const effect_delay: u32 = 0
+    pub const effect_delay: u32 = 0;
     /// Returns the kenki cost of the specified action.
-    pub const kenki_cost: u8 = 0
+    pub const kenki_cost: u8 = 0;
     /// Returns the number of sen needed to perform the iaijutsu.
-    pub const sen_cost: u8?
+    pub const sen_cost: u8?;
+    /// Returns the [`ActionCategory`] this action is part of.
+    pub const category: ActionCategory;
+
+    pub const skill for {
+        gcd = ScaleTime::skill(2500);
+        category = ActionCategory::Weaponskill;
+    }
+    pub const ability for {
+        category = ActionCategory::Ability;
+    }
 }]
 #[allow(missing_docs)] // no reason to document the variants.
 /// An action specific to the Reaper job.
@@ -615,31 +619,38 @@ pub enum SamAction {
     #[skill]
     #[name = "Enpi"]
     Enpi,
+    #[ability]
     #[name = "Hissatsu: Shinten"]
     #[cooldown = 1000]
     #[kenki_cost = 25]
     Shinten,
+    #[ability]
     #[name = "Hissatsu: Kyuten"]
     #[cooldown = 1000]
     #[kenki_cost = 25]
     Kyuten,
+    #[ability]
     #[name = "Hissatsu: Gyoten"]
     #[cooldown = 10000]
     #[kenki_cost = 10]
     Gyoten,
+    #[ability]
     #[name = "Hissatsu: Yaten"]
     #[cooldown = 10000]
     #[kenki_cost = 10]
     Yaten,
+    #[ability]
     #[name = "Hagakure"]
     #[cooldown = 5000]
     Hagakure,
+    #[ability]
     #[name = "Hissatsu: Guren"]
     #[cooldown = 120000]
     #[kenki_cost = 25]
     Guren,
     // Meditate,
     // ThirdEye,
+    #[ability]
     #[name = "Meikyo Shisui"]
     #[cooldown = 55000]
     #[cd_charges = 2]
@@ -649,10 +660,12 @@ pub enum SamAction {
     // #[cast = 130]
     // #[name = "Iaijutsu"]
     // Iaijutsu,
+    #[ability]
     #[name = "Hissatsu: Senei"]
     #[cooldown = 120000]
     #[kenki_cost = 25]
     Senei,
+    #[ability]
     #[name = "Ikishoten"]
     #[cooldown = 120000]
     Ikishoten,
@@ -660,14 +673,17 @@ pub enum SamAction {
     // #[skill]
     // #[name = "Tsubame-gaeshi"]
     // Tsubame,
+    #[ability]
     #[name = "Shoha"]
     #[cooldown = 15000]
     Shoha,
+    #[ability]
     #[name = "Shoha II"]
     #[cooldown = 15000]
     // looks better than shoha2
     #[cfg_attr(feature = "serde", serde(rename = "shoha_2"))]
     Shoha2,
+    #[skill]
     #[name = "Fuko"]
     Fuko,
     #[skill]
@@ -689,27 +705,48 @@ pub enum SamAction {
     #[name = "Midare Setsugekka"]
     #[sen_cost = 3]
     Midare,
-    #[skill]
+    #[ability]
+    #[gcd = ScaleTime::skill(2500)]
     #[name = "Kaeshi: Higanbana"]
     #[cooldown = 60000]
     #[cd_charges = 2]
     #[tsubame]
     KaeshiHiganbana,
-    #[skill]
+    #[ability]
+    #[gcd = ScaleTime::skill(2500)]
     #[name = "Kaeshi: Goken"]
     #[cooldown = 60000]
     #[cd_charges = 2]
     #[tsubame]
     KaeshiGoken,
-    #[skill]
+    #[ability]
+    #[gcd = ScaleTime::skill(2500)]
     #[name = "Kaeshi: Setsugekka"]
     #[cooldown = 60000]
     #[cd_charges = 2]
     #[tsubame]
     KaeshiSetsugekka,
-    #[skill]
+    #[ability]
+    #[gcd = ScaleTime::skill(2500)]
     #[name = "Kaeshi: Namikiri"]
     KaeshiNamikiri,
+    #[name((ac) => ac.name())]
+    #[category((ac) => ac.category())]
+    #[cooldown((ac) => ac.cooldown())]
+    #[cd_charges((ac) => ac.cd_charges())]
+    Role(MeleeRoleAction),
+}
+
+impl JobAction for SamAction {
+    fn category(&self) -> ActionCategory {
+        self.category()
+    }
+}
+
+impl From<SamAction> for Action {
+    fn from(value: SamAction) -> Self {
+        Action::Job(value.into())
+    }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

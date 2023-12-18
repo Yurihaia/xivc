@@ -11,3 +11,4 @@ edition = "2021"
 xivc-core = { path = "./crates/xivc-core" }
 macros = { path = "./crates/macros" }
 serde = { version = "1.0", default-features = false }
+rand = { version = "0.8.5", default-features = false }

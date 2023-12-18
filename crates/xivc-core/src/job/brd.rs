@@ -6,21 +6,22 @@ use macros::var_consts;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    enums::DamageInstance,
+    bool_job_dist,
+    enums::{ActionCategory, DamageInstance},
     job::{CastInitInfo, Job, JobState},
     job_cd_struct, job_effect_wrapper, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::GaugeU8,
     world::{
         status::{consume_status, JobEffect, StatusEffect, StatusEventExt},
-        ActionTargetting, Actor, ActorId, DamageEventExt, Event, EventError, EventProxy, Faction,
-        World,
+        Action, ActionTargetting, Actor, ActorId, DamageEventExt, Event, EventError, EventSink,
+        Faction, World,
     },
 };
 
-use super::JobEvent;
+use super::{JobAction, JobEvent};
 
-/// The [`Job`] struct for Reaper.
+/// The [`Job`] struct for Bard.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BrdJob;
 
@@ -96,13 +97,14 @@ impl Job for BrdJob {
     type Event = BrdEvent;
     type CdGroup = BrdCdGroup;
 
-    fn check_cast<'w, E: EventProxy, W: World>(
+    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
-        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
+        let this = event_sink.source();
+
         let di = this.duration_info();
 
         let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
@@ -159,13 +161,15 @@ impl Job for BrdJob {
         state.cds.apply(group, cooldown, charges);
     }
 
-    fn cast_snap<'w, E: EventProxy, W: World>(
+    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
         _: &'w W,
-        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) {
+        let this = event_sink.source();
+        let this_id = this.id();
+
         use BrdAction::*;
 
         let target_enemy = |t: ActionTargetting| {
@@ -175,23 +179,21 @@ impl Job for BrdJob {
 
         let dl = action.effect_delay();
 
-        let this_id = this.id();
-
         // handle a damage event that can be tripled by Barrage
         let barrage = |event_sink: &mut E, damage: DamageInstance, target: ActorId, delay: u32| {
             let mut cascade = EventCascade::new(delay, 1);
-            event_sink.damage(this, damage, target, cascade.next());
+            event_sink.damage(action, damage, target, cascade.next());
             if this.has_own_status(BARRAGE) {
                 event_sink.remove_status(BARRAGE, this_id, 0);
-                event_sink.damage(this, damage, target, cascade.next());
-                event_sink.damage(this, damage, target, cascade.next());
+                event_sink.damage(action, damage, target, cascade.next());
+                event_sink.damage(action, damage, target, cascade.next());
             }
         };
 
         match action {
             HeavyShot | BurstShot => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if event_sink.random_bool(350) {
+                if event_sink.random(StraightShotProc) {
                     event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
                 }
                 barrage(event_sink, DamageInstance::new(220).piercing(), t, dl);
@@ -207,17 +209,10 @@ impl Job for BrdJob {
             }
             VenomousBite | CausticBite => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if event_sink.random_bool(350) {
+                if event_sink.random(StraightShotProc) {
                     event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
                 }
-                event_sink.apply_dot(
-                    this,
-                    CAUSTIC_BITE,
-                    DamageInstance::new(20).piercing(),
-                    1,
-                    t,
-                    dl,
-                );
+                event_sink.apply_dot(CAUSTIC_BITE, DamageInstance::new(20).piercing(), 1, t, dl);
                 barrage(event_sink, DamageInstance::new(150).piercing(), t, dl);
             }
             Bloodletter => {
@@ -232,25 +227,23 @@ impl Job for BrdJob {
                 );
                 let mut cascade = EventCascade::new(dl, 1);
                 for t in iter {
-                    event_sink.damage(this, DamageInstance::new(130).piercing(), t, cascade.next());
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(130).piercing(),
+                        t,
+                        cascade.next(),
+                    );
                 }
-                if event_sink.random_bool(350) {
+                if event_sink.random(ShadowbiteProc) {
                     event_sink.apply_status(SHADOWBITE, 1, this_id, 0);
                 }
             }
             Windbite | Stormbite => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if event_sink.random_bool(350) {
+                if event_sink.random(StraightShotProc) {
                     event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
                 }
-                event_sink.apply_dot(
-                    this,
-                    STORMBITE,
-                    DamageInstance::new(25).piercing(),
-                    1,
-                    t,
-                    dl,
-                );
+                event_sink.apply_dot(STORMBITE, DamageInstance::new(25).piercing(), 1, t, dl);
                 barrage(event_sink, DamageInstance::new(100).piercing(), t, dl);
             }
             Barrage => {
@@ -276,9 +269,12 @@ impl Job for BrdJob {
                 event_sink.remove_status(MINUET, this_id, 0);
                 event_sink.apply_status(BALLAD, 1, this_id, 0);
                 // create a tick event
-                event_sink.event(BrdEvent::song_tick(state.song_gen).into(), 3000);
+                event_sink.event(
+                    JobEvent::brd(BrdEvent::song_tick(state.song_gen), this_id),
+                    3000,
+                );
                 // apply damage
-                event_sink.damage(this, DamageInstance::new(100).magical(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).magical(), t, dl);
             }
             ArmysPaeon => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
@@ -292,9 +288,12 @@ impl Job for BrdJob {
                 event_sink.remove_status(MINUET, this_id, 0);
                 event_sink.apply_status(PAEON, 1, this_id, 0);
                 // create a tick event
-                event_sink.event(BrdEvent::song_tick(state.song_gen).into(), 3000);
+                event_sink.event(
+                    JobEvent::brd(BrdEvent::song_tick(state.song_gen), this_id),
+                    3000,
+                );
                 // apply damage
-                event_sink.damage(this, DamageInstance::new(100).magical(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).magical(), t, dl);
             }
             RainOfDeath => {
                 let iter = need_target!(
@@ -304,7 +303,12 @@ impl Job for BrdJob {
                 );
                 let mut cascade = EventCascade::new(dl, 1);
                 for t in iter {
-                    event_sink.damage(this, DamageInstance::new(100).piercing(), t, cascade.next());
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(100).piercing(),
+                        t,
+                        cascade.next(),
+                    );
                 }
             }
             BattleVoice => {
@@ -335,38 +339,33 @@ impl Job for BrdJob {
                 event_sink.remove_status(PAEON, this_id, 0);
                 event_sink.apply_status(MINUET, 1, this_id, 0);
                 // create a tick event
-                event_sink.event(BrdEvent::song_tick(state.song_gen).into(), 3000);
+                event_sink.event(
+                    JobEvent::brd(BrdEvent::song_tick(state.song_gen), this_id),
+                    3000,
+                );
                 // apply damage
-                event_sink.damage(this, DamageInstance::new(100).magical(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).magical(), t, dl);
             }
             EmpyrealArrow => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
                 state.repertoire();
-                event_sink.damage(this, DamageInstance::new(240).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(240).piercing(), t, dl);
             }
             IronJaws => {
                 let target_actor = need_target!(
                     this.actors_for_action(Some(Faction::Enemy), RANGED).next(),
                     event_sink
                 );
-                if event_sink.random_bool(350) {
+                if event_sink.random(StraightShotProc) {
                     event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
                 }
                 let t = target_actor.id();
                 // if the target has stormbite/caustic bite, reapply them.
                 if target_actor.has_status(STORMBITE, this_id) {
-                    event_sink.apply_dot(
-                        this,
-                        STORMBITE,
-                        DamageInstance::new(25).piercing(),
-                        1,
-                        t,
-                        dl,
-                    );
+                    event_sink.apply_dot(STORMBITE, DamageInstance::new(25).piercing(), 1, t, dl);
                 }
                 if target_actor.has_status(CAUSTIC_BITE, this_id) {
                     event_sink.apply_dot(
-                        this,
                         CAUSTIC_BITE,
                         DamageInstance::new(20).piercing(),
                         1,
@@ -378,7 +377,7 @@ impl Job for BrdJob {
             }
             Sidewinder => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                event_sink.damage(this, DamageInstance::new(320).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(320).piercing(), t, dl);
             }
             Shadowbite => {
                 let iter = need_target!(
@@ -386,11 +385,11 @@ impl Job for BrdJob {
                     event_sink,
                     uaoe
                 );
-                let barrage = consume_status(this, event_sink, BARRAGE, 0);
+                let barrage = consume_status(event_sink, BARRAGE, 0);
                 event_sink.remove_status(SHADOWBITE, this_id, 0);
                 let potency = if barrage { 270 } else { 170 };
                 for t in iter {
-                    event_sink.damage(this, DamageInstance::new(potency).piercing(), t, dl);
+                    event_sink.damage(action, DamageInstance::new(potency).piercing(), t, dl);
                 }
             }
             ApexArrow => {
@@ -403,7 +402,7 @@ impl Job for BrdJob {
                 let mut cascade = EventCascade::new(dl, 1);
                 for t in iter {
                     event_sink.damage(
-                        this,
+                        action,
                         DamageInstance::new(potency as u64).piercing(),
                         t,
                         cascade.next(),
@@ -437,20 +436,25 @@ impl Job for BrdJob {
                     3 => 360,
                     _ => 0,
                 };
-                event_sink.damage(this, DamageInstance::new(potency).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(potency).piercing(), t, dl);
             }
             BlastArrow => {
                 let (first, other) = need_target!(target_enemy(LINE), event_sink, aoe);
                 event_sink.remove_status(BLAST_ARROW, this_id, 0);
                 let mut cascade = EventCascade::new(dl, 1);
                 event_sink.damage(
-                    this,
+                    action,
                     DamageInstance::new(600).piercing(),
                     first,
                     cascade.next(),
                 );
                 for t in other {
-                    event_sink.damage(this, DamageInstance::new(240).piercing(), t, cascade.next());
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(240).piercing(),
+                        t,
+                        cascade.next(),
+                    );
                 }
             }
             RepellingShot | WardensPaean | NaturesMinne | Troubadour => {
@@ -459,18 +463,17 @@ impl Job for BrdJob {
         }
     }
 
-    fn event<'w, E: EventProxy, W: World>(
+    fn event<'w, E: EventSink<'w, W>, W: World>(
         state: &mut Self::State,
         world: &'w W,
         event: &Event,
-        this: &'w W::Actor<'w>,
-        event_src: Option<&'w W::Actor<'w>>,
         event_sink: &mut E,
     ) {
+        let this = event_sink.source();
         let this_id = this.id();
         match event {
-            Event::Job(JobEvent::Brd(event)) => {
-                if event_src.map(|v| v.id() == this_id).unwrap_or_default() {
+            Event::Job(JobEvent::Brd(event), src_id) => {
+                if *src_id == this_id {
                     match event {
                         BrdEvent::SongTick { gen } => {
                             if let Some((song, time)) = &state.song {
@@ -494,12 +497,15 @@ impl Job for BrdJob {
                                         state.song = None;
                                     } else {
                                         // 80% chance for rep proc
-                                        if event_sink.random_bool(800) {
+                                        if event_sink.random(RepertoireProc) {
                                             state.repertoire();
                                         }
 
                                         event_sink.event(
-                                            BrdEvent::song_tick(state.song_gen).into(),
+                                            JobEvent::brd(
+                                                BrdEvent::song_tick(state.song_gen).into(),
+                                                this_id,
+                                            ),
                                             3000,
                                         );
                                     }
@@ -562,8 +568,8 @@ pub enum BrdError {
     Coda,
 }
 impl BrdError {
-    /// Submits the cast error into the [`EventProxy`].
-    pub fn submit(self, event_sink: &mut impl EventProxy) {
+    /// Submits the cast error into the [`EventSink`].
+    pub fn submit<'w, W: World>(self, event_sink: &mut impl EventSink<'w, W>) {
         event_sink.error(self.into())
     }
 }
@@ -600,113 +606,151 @@ const LINE: ActionTargetting = ActionTargetting::line(25);
     derive(Serialize, Deserialize),
     serde(rename_all = "snake_case")
 )]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 #[var_consts {
     /// Returns the base GCD recast time, or `None` if the action is not a gcd.
-    pub const gcd: ScaleTime? = ScaleTime::skill(2500)
+    pub const gcd: ScaleTime?;
     /// Returns the human friendly name of the action.
-    pub const name: &'static str
+    pub const name: &'static str;
     /// Returns the cooldown of the skill in milliseconds.
-    pub const cooldown: u32 = 0
+    pub const cooldown: u32 = 0;
     /// Returns the number of charges a skill has, or `1` if it is a single charge skill.
-    pub const cd_charges: u8 = 1
+    pub const cd_charges: u8 = 1;
     /// Returns the delay in milliseconds for the damage/statuses to be applied.
-    pub const effect_delay: u32 = 0
+    pub const effect_delay: u32 = 0;
+    /// Returns the [`ActionCategory`] this action is part of.
+    pub const category: ActionCategory;
+
+    pub const skill for {
+        category = ActionCategory::Weaponskill;
+        gcd = ScaleTime::skill(2500);
+    }
+    pub const ability for {
+        category = ActionCategory::Ability;
+    }
 }]
 #[allow(missing_docs)]
 pub enum BrdAction {
-    #[gcd]
+    #[skill]
     #[name = "Heavy Shot"]
     HeavyShot,
-    #[gcd]
+    #[skill]
     #[name = "Straight Shot"]
     StraightShot,
+    #[ability]
     #[cooldown = 120000]
     #[name = "Raging Strikes"]
     RagingStrikes,
-    #[gcd]
+    #[skill]
     #[name = "Venomous Bite"]
     VenomousBite,
+    #[ability]
     #[cooldown = 15000]
     #[cd_charges = 3]
     #[name = "Bloodletter"]
     Bloodletter,
+    #[ability]
     #[cooldown = 30000]
     #[name = "RepellingShot"]
     RepellingShot,
-    #[gcd]
+    #[skill]
     #[name = "Quick Nock"]
     QuickNock,
-    #[gcd]
+    #[skill]
     #[name = "Windbite"]
     Windbite,
+    #[ability]
     #[cooldown = 120000]
     #[name = "Barrage"]
     Barrage,
+    #[ability]
     #[cooldown = 120000]
     #[name = "Mage's Ballad"]
     MagesBallad,
+    #[ability]
     #[cooldown = 45000]
     #[name = "The Warden's Paean"]
     WardensPaean,
+    #[ability]
     #[cooldown = 120000]
     #[name = "Army's Paeon"]
     ArmysPaeon,
+    #[ability]
     #[cooldown = 15000]
     #[name = "Rain of Death"]
     RainOfDeath,
+    #[ability]
     #[cooldown = 120000]
     #[name = "Battle Voice"]
     BattleVoice,
+    #[ability]
     #[cooldown = 120000]
     #[name = "The Wanderer's Minuet"]
     WanderersMinuet,
+    #[ability]
     #[cooldown = 15000]
     #[name = "Empyreal Arrow"]
     EmpyrealArrow,
-    #[gcd]
+    #[skill]
     #[name = "Iron Jaws"]
     IronJaws,
+    #[ability]
     #[cooldown = 60000]
     #[name = "Sidewinder"]
     Sidewinder,
+    #[ability]
     #[cooldown = 90000]
     #[name = "Troubadour"]
     Troubadour,
-    #[gcd]
+    #[skill]
     #[name = "Caustic Bite"]
     CausticBite,
-    #[gcd]
+    #[skill]
     #[name = "Stormbite"]
     Stormbite,
+    #[ability]
     #[cooldown = 120000]
     #[name = "Nature's Minne"]
     NaturesMinne,
-    #[gcd]
+    #[skill]
     #[name = "Refulgent Arrow"]
     RefulgentArrow,
-    #[gcd]
+    #[skill]
     #[name = "Shadowbite"]
     Shadowbite,
-    #[gcd]
+    #[skill]
     #[name = "Burst Shot"]
     BurstShot,
-    #[gcd]
+    #[skill]
     #[name = "Apex Arrow"]
     ApexArrow,
-    #[gcd]
+    #[skill]
     #[name = "Ladonsbite"]
     Ladonsbite,
+    #[ability]
     #[cooldown = 110000]
     #[name = "Radiant Finale"]
     RadiantFinale,
+    #[ability]
     #[cooldown = 1000]
     #[name = "Pitch Perfect"]
     PitchPerfect,
-    #[gcd]
+    #[skill]
     #[name = "Blast Arrow"]
     BlastArrow,
+}
+
+impl JobAction for BrdAction {
+    fn category(&self) -> ActionCategory {
+        self.category()
+    }
+}
+
+impl From<BrdAction> for Action {
+    fn from(value: BrdAction) -> Self {
+        Action::Job(value.into())
+    }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -900,8 +944,11 @@ impl BrdEvent {
     }
 }
 
-impl From<BrdEvent> for Event {
-    fn from(value: BrdEvent) -> Self {
-        Event::Job(JobEvent::Brd(value))
-    }
+bool_job_dist! {
+    /// The random event for a Straight Shot proc.
+    pub StraightShotProc = 35 / 100;
+    /// The random event for a Straight Shot proc.
+    pub ShadowbiteProc = 35 / 100;
+    /// The random event for a Repertoire proc.
+    pub RepertoireProc = 8 / 10;
 }

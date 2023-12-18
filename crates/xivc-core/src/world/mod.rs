@@ -1,8 +1,7 @@
 //! The global state of an XIVC simulation.
 //!
-//! This module contains the proxy traits [`World`] an [`Actor`],
-//! which can be used to interact with the global state and actor state
-//! respectively.
+//! This module contains the traits [`World`] and [`Actor`], which can be used to
+//! read global state and actor state respectively.
 //!
 //! The [`ActorId`] is an opaque handle for an actor inside the world.
 //! It is expected that world implementations will not reuse [`ActorId`]s
@@ -11,11 +10,21 @@
 //! Also of note is the [`status`] submodule. This module contains
 //! all of the logic for status effect handling.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 pub mod status;
 
 pub mod queue;
 
-use crate::{enums::DamageInstance, job, math::EotSnapshot, timing::DurationInfo};
+use rand::distributions::Distribution;
+
+use crate::{
+    enums::{ActionCategory, DamageInstance},
+    job,
+    math::EotSnapshot,
+    timing::DurationInfo,
+};
 
 use self::status::{StatusEffect, StatusEvent, StatusInstance};
 
@@ -30,14 +39,6 @@ pub trait World {
     type Actor<'w>: Actor<'w, World = Self>
     where
         Self: 'w;
-    /// The type of the iterator used for status instances on an actor.
-    type StatusIter<'w>: Iterator<Item = StatusInstance>
-    where
-        Self: 'w;
-    /// The type of the iterator used for iterating through a list of actors.
-    type ActorIter<'w>: Iterator<Item = &'w Self::Actor<'w>>
-    where
-        Self: 'w;
     /// The [`DurationInfo`] that each actor can return.
     type DurationInfo: DurationInfo;
 
@@ -45,15 +46,18 @@ pub trait World {
     /// if no actor with the id exists.
     ///
     /// [`id`]: ActorId
-    fn actor(&self, id: ActorId) -> Option<&Self::Actor<'_>>;
+    fn actor(&self, id: ActorId) -> Option<Self::Actor<'_>>;
 }
 
-/// An actor is the world.
+/// A reference to an actor in the world.
 ///
-/// This is often proxy trait for manipulating
+/// This is often a proxy trait for manipulating
 /// an actor in the world, not nescessarily a
 /// reference to the actual actor.
-pub trait Actor<'w>: 'w {
+///
+/// This trait only exposes an immutable API.
+/// To make changes to actors and the world, submit events to an [`EventSink`].
+pub trait Actor<'w>: 'w + Clone + Sized {
     /// The World type that this actor is from.
     type World: World<Actor<'w> = Self>;
 
@@ -74,10 +78,9 @@ pub trait Actor<'w>: 'w {
     /// [status effects] present on the actor.
     ///
     /// [status effects]: status::StatusInstance
-    fn statuses(&self) -> <Self::World as World>::StatusIter<'w>;
+    fn statuses(&self) -> impl Iterator<Item = StatusInstance> + 'w;
     /// Returns `true` if the actor has an `effect` applied by a `source` actor.
     fn has_status(&self, effect: StatusEffect, source: ActorId) -> bool {
-        // r-a chokes on this for some reason
         self.statuses()
             .any(|v| v.effect == effect && v.source == source)
     }
@@ -94,14 +97,14 @@ pub trait Actor<'w>: 'w {
     }
 
     /// Returns the current target of the actor, or [`None`] if the actor has no target.
-    fn target(&self) -> Option<&'w Self>;
+    fn target(&self) -> Option<<Self::World as World>::Actor<'w>>;
     /// Returns an iterator of the actors in a certain [`Faction`] that will
     /// be hit by an action with the specified [`ActionTargetting`].
     fn actors_for_action(
         &self,
         faction: Option<Faction>,
         targetting: ActionTargetting,
-    ) -> <Self::World as World>::ActorIter<'w>;
+    ) -> impl Iterator<Item = Self> + 'w;
 
     /// Returns `true` if the other actor is within the specified action targetting range.
     fn within_range(&self, other: ActorId, targetting: ActionTargetting) -> bool;
@@ -134,6 +137,7 @@ pub enum EventError {
     NoTarget,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 /// An ID of an [`Actor`].
 ///
@@ -144,10 +148,12 @@ pub enum EventError {
 pub struct ActorId(pub u16);
 
 /// A sink for events and errors.
-pub trait EventProxy {
-    /// Submits an error into the event proxy.
+pub trait EventSink<'w, W: World> {
+    /// Returns the source actor that the events will come from.
+    fn source(&self) -> W::Actor<'w>;
+    /// Submits an error into the event sink.
     fn error(&mut self, error: EventError);
-    /// Submits an event into the event proxy to be executed after a specified delay.
+    /// Submits an event into the event sink to be executed after a specified delay.
     ///
     /// <div class="warning" id="orderwarning">
     ///
@@ -162,7 +168,7 @@ pub trait EventProxy {
     ///
     /// </div>
     ///
-    /// [`events_ordered`]: EventProxy::events_ordered
+    /// [`events_ordered`]: EventSink::events_ordered
     /// [`Job::event`]: crate::job::Job::event
     fn event(&mut self, event: Event, delay: u32);
     /// Submits a sequence of events to be executed in order.
@@ -172,8 +178,8 @@ pub trait EventProxy {
     /// bound. However, note that the ordering between multiple calls to this function
     /// will result in the latter call's events being executed first.
     ///
-    /// [warning]: EventProxy#orderwarning
-    /// [`event`]: EventProxy::event
+    /// [warning]: EventSink#orderwarning
+    /// [`event`]: EventSink::event
     fn events_ordered<I>(&mut self, events: I, delay: u32)
     where
         I: IntoIterator<Item = Event>,
@@ -183,11 +189,23 @@ pub trait EventProxy {
             self.event(event, delay);
         }
     }
-
-    /// Returns a random [`bool`] with a certain probability of being `true`.
+    /// Returns a random value of type `T` from the distribution `D`.
     ///
-    /// The probability is scaled by `1000`, meaning a 50% chance is `500`.
-    fn random_bool(&mut self, probability: u16) -> bool;
+    /// This API is made this way to give `EventSink` implementors the ability
+    /// to fabricate results from an RNG.
+    ///
+    /// Implementors should make sure that, while *statistically* the returned value doesn't
+    /// have to match the distribution, the returned value should not fall outside the range
+    /// of values that the distribution could produce.
+    ///
+    /// Both `D` and `T` are `'static` to allow the use of [`TypeId`]. This allows implementors
+    /// to override specific instances of distributions with other custom values.
+    /// Because of this, it is recommended that users of this method create custom [`Distribution`]
+    /// implementations for the various sources of randomness within a job.
+    fn random<D, T>(&mut self, distr: D) -> T
+    where
+        D: Distribution<T> + 'static,
+        T: 'static;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -210,7 +228,7 @@ pub enum Faction {
 pub enum Event {
     Damage(DamageEvent),
     Status(StatusEvent),
-    Job(job::JobEvent),
+    Job(job::JobEvent, ActorId),
     MpTick(ActorId),
     ActorTick(ActorId),
 }
@@ -220,13 +238,22 @@ pub enum Event {
 pub struct DamageEvent {
     /// The damage of the event.
     pub damage: u64,
+    /// The actor dealing the damage.
+    pub source: ActorId,
     /// The target receiving the damage.
     pub target: ActorId,
+    /// The action dealing the damage.
+    pub action: Action,
 }
 impl DamageEvent {
     /// Creates a new damage event.
-    pub const fn new(damage: u64, target: ActorId) -> Self {
-        Self { damage, target }
+    pub const fn new(damage: u64, source: ActorId, target: ActorId, action: Action) -> Self {
+        Self {
+            damage,
+            source,
+            target,
+            action,
+        }
     }
 }
 impl From<DamageEvent> for Event {
@@ -235,21 +262,41 @@ impl From<DamageEvent> for Event {
     }
 }
 
-/// A helper trait for easily submitting damage events on to an event proxy.
-pub trait DamageEventExt: EventProxy {
+/// A helper trait for easily submitting damage events on to an event sink.
+pub trait DamageEventExt<'w, W: World + 'w>: EventSink<'w, W> {
     /// Deals damage to the target after the specified delay.
     fn damage<'a>(
         &mut self,
-        actor: &impl Actor<'a>,
+        action: impl Into<Action>,
         damage: DamageInstance,
         target: ActorId,
         delay: u32,
     ) {
+        let actor = self.source();
         let damage = actor.attack_damage(damage, target);
-        self.event(DamageEvent::new(damage, target).into(), delay)
+        self.event(
+            DamageEvent::new(damage, actor.id(), target, action.into()).into(),
+            delay,
+        )
     }
 }
-impl<E: EventProxy> DamageEventExt for E {}
+impl<'w, W: World + 'w, E: EventSink<'w, W>> DamageEventExt<'w, W> for E {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An action that an actor can cast.
+pub enum Action {
+    /// An action used by a job.
+    Job(job::Action),
+}
+
+impl Action {
+    /// Returns the [`ActionCategory`] for this action.
+    pub fn category(&self) -> ActionCategory {
+        match self {
+            Self::Job(v) => v.category(),
+        }
+    }
+}
 
 impl From<StatusEvent> for Event {
     fn from(value: StatusEvent) -> Self {

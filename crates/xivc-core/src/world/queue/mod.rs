@@ -16,7 +16,7 @@
 //!
 //! > **the time of the event most recently retrieved from the queue.**
 //!
-//! This current time is what the `delay` in [`EventProxy::event`] is relative to.
+//! This current time is what the `delay` in [`EventSink::event`] is relative to.
 //! The difference between the current time and the time of the next retrieved event
 //! is the value which will be used when calling various `advance` functions.
 //!
@@ -40,9 +40,9 @@
 //! While this property is often not nescessary to rely on because of the system of snapshotting
 //! and damage delay that is present, in some cases it may still be nescessary.
 //!
-//! [`EventProxy`]: super::EventProxy
-//! [`EventProxy::event`]: super::EventProxy::event
-//! [`event`]: super::EventProxy::event
+//! [`EventSink`]: super::EventSink
+//! [`EventSink::event`]: super::EventSink::event
+//! [`event`]: super::EventSink::event
 //! [`BinaryHeap`]: alloc::collections::BinaryHeap
 //! [`RadixEventQueue`]: radix::RadixEventQueue
 //! [`World`]: super::World

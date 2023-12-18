@@ -7,26 +7,30 @@
 //! [`check_cast`]: Job::check_cast
 //! [`cast_snap`]: Job::cast_snap
 
-use core::fmt::{self, Debug, Display};
+use core::{
+    fmt::{self, Debug, Display},
+    hash::Hash,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::world::{status::JobEffect, Event, EventProxy, World};
+use crate::{
+    enums::ActionCategory,
+    world::{status::JobEffect, ActorId, Event, EventSink, World},
+};
 
-// #[rustfmt::skip] attributes are to retain the specific ordering used in game.
-// there is unfortunately no better way than to duplicate these attributes
-// onto each module.
+/// Utilities for role actions.
+pub mod role;
 
 /// Logic and types for Bard.
-#[rustfmt::skip]
 pub mod brd;
-/// Logic and types for Samurai.
-#[rustfmt::skip]
-pub mod sam;
+/// Logic and types for Dancer.
+pub mod dnc;
 /// Logic and types for Reaper.
-#[rustfmt::skip]
 pub mod rpr;
+/// Logic and types for Samurai.
+pub mod sam;
 
 /// A set of logic for working with jobs in a uniform way.
 ///
@@ -38,7 +42,7 @@ pub mod rpr;
 /// as an organizational guideline when interacting with specific jobs.
 pub trait Job {
     /// The actions this job can cast.
-    type Action: Copy + Debug + 'static;
+    type Action: JobAction + 'static;
     /// The job gauge state, action cooldowns, and active combos for this job.
     type State: JobState + 'static;
     /// A custom error for an action that cannot be cast.
@@ -64,11 +68,10 @@ pub trait Job {
     ///
     /// This function should be infallible, and the returned [`CastInitInfo`]
     /// should be on a best-effort basis if errors are encountered.
-    fn check_cast<'w, E: EventProxy, W: World>(
+    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
         world: &'w W,
-        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup>;
 
@@ -101,11 +104,10 @@ pub trait Job {
     /// [damage]: crate::world::DamageEvent
     /// [status effect]: crate::world::status::StatusEvent
     /// [`need_target!`]: crate::need_target
-    fn cast_snap<'w, E: EventProxy, W: World>(
+    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
         world: &'w W,
-        this: &'w W::Actor<'w>,
         event_sink: &mut E,
     );
 
@@ -119,12 +121,10 @@ pub trait Job {
     ///
     /// [`Event`]: Job::Event
     #[allow(unused_variables)]
-    fn event<'w, E: EventProxy, W: World>(
+    fn event<'w, E: EventSink<'w, W>, W: World>(
         state: &mut Self::State,
         world: &'w W,
         event: &Event,
-        this: &'w W::Actor<'w>,
-        event_src: Option<&'w W::Actor<'w>>,
         event_sink: &mut E,
     ) {
         // don't require an impl
@@ -139,6 +139,12 @@ pub trait Job {
     fn effects<'a>(state: &'a Self::State) -> impl AsRef<[&'a dyn JobEffect]> {
         &[]
     }
+}
+
+/// A trait that job actions need to implement.
+pub trait JobAction: Copy + Debug + Eq + Hash {
+    /// Returns the action category the action belongs to.
+    fn category(&self) -> ActionCategory;
 }
 
 /// A trait that all job states need to implement.
@@ -194,12 +200,12 @@ pub struct CastInitInfo<C: 'static> {
 macro_rules! helper {
     (
         $(
-            $enum_name:ident $var_name:ident $job:ty { $job_name:literal }
+            $enum_name:ident $evfn:ident $var_name:ident $job:ty { $job_name:literal }
         )*
     ) => {
         helper!(
             #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-            #[derive(Copy, Clone, Debug)]
+            #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
             /// An action for a particular [`Job`].
             enum Action, $(
                 /// The action for the job
@@ -207,6 +213,16 @@ macro_rules! helper {
                 $enum_name, <$job as $crate::job::Job>::Action, $job, $var_name
             )*
         );
+        impl Action {
+            /// Returns the [`ActionCategory`] for this action.
+            pub fn category(&self) -> ActionCategory {
+                match self {
+                    $(
+                        Self::$var_name(v) => JobAction::category(v),
+                    )*
+                }
+            }
+        }
         helper!(
             #[derive(Clone, Debug)]
             /// An error specific to some particular [`Job`].
@@ -252,6 +268,15 @@ macro_rules! helper {
                 $enum_name, <$job as $crate::job::Job>::Event, $job, $var_name
             )*
         );
+        impl JobEvent {
+            $(
+                /// Creates an [`Event`] from the event for the job
+                #[doc = concat!("\"", $job_name, "\".")]
+                pub fn $evfn (event: <$job as $crate::job::Job>::Event, actor: ActorId) -> Event {
+                    Event::Job(Self::$var_name(event), actor)
+                }
+            )*
+        }
     };
     (
         $(#[$m:meta])*
@@ -305,7 +330,8 @@ macro_rules! helper {
 }
 
 helper! {
-    SAM Sam sam::SamJob { "Samurai" }
-    RPR Rpr rpr::RprJob { "Reaper" }
-    BRD Brd brd::BrdJob { "Bard" }
+    BRD brd Brd brd::BrdJob { "Bard" }
+    SAM sam Sam sam::SamJob { "Samurai" }
+    DNC dnc Dnc dnc::DncJob { "Dancer" }
+    RPR rpr Rpr rpr::RprJob { "Reaper" }
 }

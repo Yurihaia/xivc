@@ -1,6 +1,6 @@
 //! Various utility types and functions.
 
-use core::{cmp, ops};
+use core::{any::TypeId, cmp, mem, ops};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -319,16 +319,17 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 /// # use xivc_core::world::{
 /// #     World,
 /// #     ActorId,
-/// #     EventProxy,
+/// #     EventSink,
 /// #     ActionTargetting,
 /// #     Faction,
 /// #     DamageEventExt,
 /// #     Actor,
 /// # };
+/// # use xivc_core::job::brd::BrdAction;
 /// # use xivc_core::timing::{EventCascade};
 /// # use xivc_core::need_target;
 /// # use xivc_core::enums::DamageInstance;
-/// # fn example(world: &impl World, event_sink: &mut impl EventProxy) {
+/// # fn example<'w, W: World>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
 /// # let src = world.actor(ActorId(0)).unwrap();
 /// // Constants like these are recommended to reduce boilerplate.
 /// const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);
@@ -343,14 +344,14 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 /// // This aoe will have damage falloff.
 /// let (first, other) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
 /// let mut cascade = EventCascade::new(600, 1);
-/// event_sink.damage(src, DamageInstance::new(1000).slashing(), first, cascade.next());
+/// event_sink.damage(action, DamageInstance::new(1000).slashing(), first, cascade.next());
 /// for target in other {
-///     event_sink.damage(src, DamageInstance::new(500).slashing(), target, cascade.next());
+///     event_sink.damage(action, DamageInstance::new(500).slashing(), target, cascade.next());
 /// }
 ///
 /// // Deal damage to a single target within a range of 3y.
 /// let target = need_target!(target_enemy(MELEE).next(), event_sink);
-/// event_sink.damage(src, DamageInstance::new(350).slashing(), target, 400);
+/// event_sink.damage(action, DamageInstance::new(350).slashing(), target, 400);
 /// # }
 /// ```
 ///
@@ -537,5 +538,77 @@ impl<C> ComboState<C> {
 impl<C> Default for ComboState<C> {
     fn default() -> Self {
         Self { combo: None }
+    }
+}
+
+#[macro_export]
+/// Defines a new bool RNG distribution wrapper.
+///
+/// This is generally used to let simulation implementations have control
+/// over specific instances of rng. For example, a simulation may want to
+/// force a specific Thunder 3 tick to get Thundercloud, or make a Reverse Cascade
+/// gcd guaranteed to not give a feather.
+///
+/// The granularity is up to interpretation, but ideally should at least be split
+/// between different effects. For example, don't combine the Silken Symmetry
+/// proc from Cascade and the Fourfold Feather from Reverse Cascade, despite them
+/// sharing the same 50% chance.
+///
+/// # Examples
+/// ```
+/// # use xivc_core::bool_job_dist;
+/// bool_job_dist! {
+///     /// The 35% chance for a Straight Shot Ready proc.
+///     pub StraightShotReady = 35 / 100;
+///     /// The 10% chance for a Thundercloud proc.
+///     pub Thundercloud = 1 / 10;
+///     /// The 50% chance to get a Fourfold Feather.
+///     pub FourfoldFeather = 1 / 2;
+/// }
+/// ```
+macro_rules! bool_job_dist {
+    (
+        $(
+            $(#[$m:meta])*
+            $v:vis $id:ident = $n:literal / $d:literal;
+        )*
+    ) => {
+        $(
+            $(#[$m])*
+            $v struct $id;
+
+            impl rand::distributions::Distribution<bool> for $id {
+                fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> bool {
+                    rng.gen_ratio($n, $d)
+                }
+            }
+        )*
+    };
+}
+
+/// "Converts" a value into another type, as long as both types are the same.
+/// If the types do not match, returns an [`Err`] containing the original value.
+///
+/// This is essentially a by value version of [`Any::downcast_ref`]. It mainly
+/// is useful for [`EventSink::random`] implementations to return specific
+/// values for the different calls to it.
+///
+/// [`Any::downcast_ref`]: core::any::Any#method.downcast_ref
+/// [`EventSink::random`]: crate::world::EventSink::random
+pub fn convert<S, D>(s: S) -> Result<D, S>
+where
+    S: 'static,
+    D: 'static,
+{
+    if TypeId::of::<S>() == TypeId::of::<D>() {
+        // Safety
+        // S and D are the same type because their TypeIds match.
+        // ManuallyDrop has the same layout as its contents,
+        // So ManuallyDrop<S> can be transmuted to S.
+        // `s` will not get double dropped because it is inside a ManuallyDrop.
+        let out = mem::ManuallyDrop::new(s);
+        Ok(unsafe { mem::transmute_copy(&out) })
+    } else {
+        Err(s)
     }
 }

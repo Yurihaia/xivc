@@ -31,7 +31,7 @@ use crate::{
     math::{Buffs, EotSnapshot, PlayerStats},
 };
 
-use super::{Actor, ActorId, EventProxy};
+use super::{Actor, ActorId, EventSink, World};
 
 #[derive(Debug, Clone, Copy)]
 /// A specific instance of a status effect inflicted upon an actor.
@@ -577,15 +577,18 @@ impl<T> ValueModifier<T> {
 ///
 /// The `time` parameter is the delay that the Status Remove event
 /// will be submitted at.
-pub fn consume_status<'w, A: Actor<'w>>(
-    actor: &A,
-    proxy: &mut impl EventProxy,
+pub fn consume_status<'w, W: World + 'w>(
+    event_sink: &mut impl EventSink<'w, W>,
     status: StatusEffect,
     time: u32,
 ) -> bool {
+    let actor = event_sink.source();
     let present = actor.has_own_status(status);
     if present {
-        proxy.event(StatusEvent::remove(status, actor.id()).into(), time);
+        event_sink.event(
+            StatusEvent::remove(status, actor.id(), actor.id()).into(),
+            time,
+        );
     }
     present
 }
@@ -595,16 +598,16 @@ pub fn consume_status<'w, A: Actor<'w>>(
 ///
 /// The `time` parameter is the delay that the Status Remove event
 /// will be submitted at.
-pub fn consume_status_stack<'w, A: Actor<'w>>(
-    actor: &A,
-    proxy: &mut impl EventProxy,
+pub fn consume_status_stack<'w, W: World + 'w>(
+    event_sink: &mut impl EventSink<'w, W>,
     status: StatusEffect,
     time: u32,
 ) -> bool {
+    let actor = event_sink.source();
     let present = actor.has_own_status(status);
     if present {
-        proxy.event(
-            StatusEvent::remove_stacks(status, 1, actor.id()).into(),
+        event_sink.event(
+            StatusEvent::remove_stacks(status, 1, actor.id(), actor.id()).into(),
             time,
         );
     }
@@ -616,6 +619,8 @@ pub fn consume_status_stack<'w, A: Actor<'w>>(
 pub struct StatusEvent {
     /// The status effect to be modified.
     pub status: StatusEffect,
+    /// The source actor for the event.
+    pub source: ActorId,
     /// The target actor of the event.
     pub target: ActorId,
     /// The kind of modification that will be executed.
@@ -623,13 +628,14 @@ pub struct StatusEvent {
 }
 impl StatusEvent {
     /// Applies a status effect with a certain number of stacks on to a target actor.
-    pub const fn apply(status: StatusEffect, stacks: u8, target: ActorId) -> Self {
+    pub const fn apply(status: StatusEffect, stacks: u8, source: ActorId, target: ActorId) -> Self {
         Self {
             kind: StatusEventKind::Apply {
                 duration: status.0.duration,
                 stacks,
             },
             status,
+            source,
             target,
         }
     }
@@ -639,6 +645,7 @@ impl StatusEvent {
         status: StatusEffect,
         snapshot: EotSnapshot,
         stacks: u8,
+        source: ActorId,
         target: ActorId,
     ) -> Self {
         Self {
@@ -648,30 +655,45 @@ impl StatusEvent {
                 stacks,
             },
             status,
+            source,
             target,
         }
     }
     /// Removes a status effect from a target actor.
-    pub const fn remove(status: StatusEffect, target: ActorId) -> Self {
+    pub const fn remove(status: StatusEffect, source: ActorId, target: ActorId) -> Self {
         Self {
             kind: StatusEventKind::Remove,
             status,
+            source,
             target,
         }
     }
     /// Removes a certain number of stacks from a status effect from a target actor.
-    pub const fn remove_stacks(status: StatusEffect, stacks: u8, target: ActorId) -> Self {
+    pub const fn remove_stacks(
+        status: StatusEffect,
+        stacks: u8,
+        source: ActorId,
+        target: ActorId,
+    ) -> Self {
         Self {
             kind: StatusEventKind::RemoveStacks { stacks },
             status,
+            source,
             target,
         }
     }
     /// Adds a certain number of stacks from a status effect from a target actor.
-    pub const fn add_stacks(status: StatusEffect, stacks: u8, max: u8, target: ActorId) -> Self {
+    pub const fn add_stacks(
+        status: StatusEffect,
+        stacks: u8,
+        max: u8,
+        source: ActorId,
+        target: ActorId,
+    ) -> Self {
         Self {
             kind: StatusEventKind::AddStacks { stacks, max },
             status,
+            source,
             target,
         }
     }
@@ -684,6 +706,7 @@ impl StatusEvent {
         status: StatusEffect,
         stacks: u8,
         multiple: u32,
+        source: ActorId,
         target: ActorId,
     ) -> Self {
         Self {
@@ -693,6 +716,7 @@ impl StatusEvent {
                 max: status.0.duration * multiple,
             },
             status,
+            source,
             target,
         }
     }
@@ -706,6 +730,7 @@ impl StatusEvent {
         status: StatusEffect,
         stacks: u8,
         max: u8,
+        source: ActorId,
         target: ActorId,
     ) -> Self {
         Self {
@@ -715,6 +740,7 @@ impl StatusEvent {
                 max,
             },
             status,
+            source,
             target,
         }
     }
@@ -756,36 +782,64 @@ pub enum StatusEventKind {
     },
 }
 
-/// A helper trait for easily submitting status events on to an event proxy.
-pub trait StatusEventExt: EventProxy {
+/// A helper trait for easily submitting status events on to an event sink.
+pub trait StatusEventExt<'w, W: World + 'w>: EventSink<'w, W> {
     /// Applies a status effect with a certain number of stacks on to a target actor.
     fn apply_status(&mut self, status: StatusEffect, stacks: u8, target: ActorId, delay: u32) {
-        self.event(StatusEvent::apply(status, stacks, target).into(), delay)
+        self.event(
+            StatusEvent::apply(status, stacks, self.source().id(), target).into(),
+            delay,
+        )
+    }
+    /// Applies a status effect with a certain number of stacks on to a target actor.
+    fn apply_status_cascade_remove(
+        &mut self,
+        status: StatusEffect,
+        stacks: u8,
+        target: ActorId,
+        delay: u32,
+    ) {
+        self.event(
+            StatusEvent {
+                source: self.source().id(),
+                target,
+                status,
+                kind: StatusEventKind::Apply {
+                    duration: status.duration + delay,
+                    stacks,
+                },
+            }
+            .into(),
+            0,
+        )
     }
     /// Applies a DoT status effect with a certain number of stacks on to a target actor.
     fn apply_dot<'a>(
         &mut self,
-        actor: &impl Actor<'a>,
         status: StatusEffect,
         damage: DamageInstance,
         stacks: u8,
         target: ActorId,
         time: u32,
     ) {
+        let actor = self.source();
         let snapshot = actor.dot_damage_snapshot(damage, target);
         self.event(
-            StatusEvent::apply_dot(status, snapshot, stacks, target).into(),
+            StatusEvent::apply_dot(status, snapshot, stacks, actor.id(), target).into(),
             time,
         )
     }
     /// Removes a status effect from a target actor.
     fn remove_status(&mut self, status: StatusEffect, target: ActorId, delay: u32) {
-        self.event(StatusEvent::remove(status, target).into(), delay)
+        self.event(
+            StatusEvent::remove(status, self.source().id(), target).into(),
+            delay,
+        )
     }
     /// Removes a certain number of stacks from a status effect from a target actor.
     fn remove_stacks(&mut self, status: StatusEffect, stacks: u8, target: ActorId, delay: u32) {
         self.event(
-            StatusEvent::remove_stacks(status, stacks, target).into(),
+            StatusEvent::remove_stacks(status, stacks, self.source().id(), target).into(),
             delay,
         )
     }
@@ -799,7 +853,7 @@ pub trait StatusEventExt: EventProxy {
         delay: u32,
     ) {
         self.event(
-            StatusEvent::add_stacks(status, stacks, max, target).into(),
+            StatusEvent::add_stacks(status, stacks, max, self.source().id(), target).into(),
             delay,
         )
     }
@@ -817,7 +871,8 @@ pub trait StatusEventExt: EventProxy {
         delay: u32,
     ) {
         self.event(
-            StatusEvent::apply_or_extend(status, stacks, multiple, target).into(),
+            StatusEvent::apply_or_extend(status, stacks, multiple, self.source().id(), target)
+                .into(),
             delay,
         )
     }
@@ -836,10 +891,11 @@ pub trait StatusEventExt: EventProxy {
         delay: u32,
     ) {
         self.event(
-            StatusEvent::apply_or_add_stacks(status, stacks, max, target).into(),
+            StatusEvent::apply_or_add_stacks(status, stacks, max, self.source().id(), target)
+                .into(),
             delay,
         )
     }
 }
 
-impl<E: EventProxy> StatusEventExt for E {}
+impl<'w, W: World + 'w, E: EventSink<'w, W>> StatusEventExt<'w, W> for E {}
