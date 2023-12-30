@@ -22,7 +22,7 @@ use rand::distributions::Distribution;
 use crate::{
     enums::{ActionCategory, DamageInstance},
     job,
-    math::EotSnapshot,
+    math::{EotSnapshot, SpeedStat},
     timing::DurationInfo,
 };
 
@@ -40,7 +40,7 @@ pub trait World {
     where
         Self: 'w;
     /// The [`DurationInfo`] that each actor can return.
-    type DurationInfo: DurationInfo;
+    type DurationInfo<'w>: DurationInfo where Self: 'w;
 
     /// Returns the actor with the specified [`id`], or [`None`]
     /// if no actor with the id exists.
@@ -70,7 +70,12 @@ pub trait Actor<'w>: 'w + Clone + Sized {
     /// Returns the calculated damage of an attack.
     fn attack_damage(&self, damage: DamageInstance, target: ActorId) -> u64;
     /// Returns the snapshot for a damage over time effect.
-    fn dot_damage_snapshot(&self, damage: DamageInstance, target: ActorId) -> EotSnapshot;
+    fn dot_damage_snapshot(
+        &self,
+        damage: DamageInstance,
+        stat: SpeedStat,
+        target: ActorId,
+    ) -> EotSnapshot;
     /// Returns the calculated damage for an auto attack.
     fn auto_damage(&self, target: ActorId) -> u64;
 
@@ -78,7 +83,7 @@ pub trait Actor<'w>: 'w + Clone + Sized {
     /// [status effects] present on the actor.
     ///
     /// [status effects]: status::StatusInstance
-    fn statuses(&self) -> impl Iterator<Item = StatusInstance> + 'w;
+    fn statuses(&self) -> impl Iterator<Item = StatusInstance>;
     /// Returns `true` if the actor has an `effect` applied by a `source` actor.
     fn has_status(&self, effect: StatusEffect, source: ActorId) -> bool {
         self.statuses()
@@ -104,7 +109,7 @@ pub trait Actor<'w>: 'w + Clone + Sized {
         &self,
         faction: Option<Faction>,
         targetting: ActionTargetting,
-    ) -> impl Iterator<Item = Self> + 'w;
+    ) -> impl Iterator<Item = Self>;
 
     /// Returns `true` if the other actor is within the specified action targetting range.
     fn within_range(&self, other: ActorId, targetting: ActionTargetting) -> bool;
@@ -117,7 +122,7 @@ pub trait Actor<'w>: 'w + Clone + Sized {
     /// Returns `true` if the actor is currently in combat.
     fn in_combat(&self) -> bool;
     /// Returns the [`DurationInfo`] for this actor.
-    fn duration_info(&self) -> <Self::World as World>::DurationInfo;
+    fn duration_info(&self) -> <Self::World as World>::DurationInfo<'_>;
 }
 
 #[derive(Debug, Clone)]
@@ -162,7 +167,7 @@ pub trait EventSink<'w, W: World> {
     /// of an event depends on other events.
     /// Consider using [`events_ordered`] in this situation
     /// to make the ordering of events explicit.
-    /// 
+    ///
     /// However, this ordering may be useful. For example, the [`Job::event`] function can
     /// submit events with a delay of `0`, and those events will be guaranteed to be executed
     /// before any events currently awaiting execution.
@@ -203,7 +208,7 @@ pub trait EventSink<'w, W: World> {
     /// to override specific instances of distributions with other custom values.
     /// Because of this, it is recommended that users of this method create custom [`Distribution`]
     /// implementations for the various sources of randomness within a job.
-    /// 
+    ///
     /// [`TypeId`]: core::any::TypeId
     fn random<D, T>(&mut self, distr: D) -> T
     where

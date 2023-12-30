@@ -32,9 +32,9 @@ pub trait DurationInfo {
     /// let (lock, snapshot) = duration_info.get_cast(scale_time, 600);
     ///
     /// // scale_time is a non-instant cast, so the lock is the cast time + 10ms
-    /// assert_eq!(lock, scaled_time + 10);
+    /// assert_eq!(lock as u32, scaled_time + 10);
     /// // scale_time is a non-instant cast, so the snapshot is 50ms before the cast ends
-    /// assert_eq!(snapshot, scaled_time - 50);
+    /// assert_eq!(snapshot as u32, scaled_time - 50);
     /// # }
     /// ```
     fn get_cast(&self, base: ScaleTime, lock: u16) -> (u16, u16) {

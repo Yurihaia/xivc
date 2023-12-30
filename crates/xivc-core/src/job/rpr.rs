@@ -61,10 +61,12 @@ impl Job for RprJob {
     type CastError = RprError;
     type Event = ();
     type CdGroup = RprCdGroup;
+    type Cds = RprCds;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
+        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -78,13 +80,6 @@ impl Job for RprJob {
         let cd = action
             .cd_group()
             .map(|v| (v, action.cooldown(), action.cd_charges()));
-
-        // check errors
-        if let Some((cdg, cd, charges)) = cd {
-            if !state.cds.available(cdg, cd, charges) {
-                event_sink.error(EventError::Cooldown(action.into()));
-            }
-        }
 
         use RprAction::*;
         if state.lemure_shroud > 0 && action.enshroud_invalid() {
@@ -153,13 +148,10 @@ impl Job for RprJob {
         }
     }
 
-    fn set_cd(state: &mut Self::State, group: Self::CdGroup, cooldown: u32, charges: u8) {
-        state.cds.apply(group, cooldown, charges);
-    }
-
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
+        _: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
@@ -499,6 +491,7 @@ impl Job for RprJob {
 
     fn event<'w, E: EventSink<'w, W>, W: World>(
         _: &mut Self::State,
+        _: &mut Self::Cds,
         world: &'w W,
         event: &Event,
         event_sink: &mut E,
@@ -790,8 +783,6 @@ impl From<RprAction> for Action {
 #[derive(Clone, Debug, Default)]
 /// The state of the Reaper job gauges, cooldowns, and combos.
 pub struct RprState {
-    /// The cooldowns for Reaper actions.
-    pub cds: RprCds,
     /// The combos for Reaper.
     pub combos: RprCombos,
     /// The Soul gauge.
@@ -806,7 +797,6 @@ pub struct RprState {
 
 impl JobState for RprState {
     fn advance(&mut self, time: u32) {
-        self.cds.advance(time);
         self.combos.advance(time);
     }
 }

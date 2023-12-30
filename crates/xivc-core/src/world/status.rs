@@ -28,7 +28,7 @@ use core::{
 
 use crate::{
     enums::{DamageElement, DamageInstance, DamageType},
-    math::{Buffs, EotSnapshot, PlayerStats},
+    math::{Buffs, EotSnapshot, PlayerStats, SpeedStat},
 };
 
 use super::{Actor, ActorId, EventSink, World};
@@ -274,13 +274,13 @@ pub struct StatusSnapshot<'a> {
     ///
     /// This may be empty if the source has no job effects, or
     /// if the source is not a player.
-    pub job: &'a [&'a dyn JobEffect],
+    pub job: Option<&'a dyn JobEffect>,
 }
 
 impl StatusSnapshot<'static> {
     /// Creates an empty status snapshot.
     ///
-    /// This is often useful when interactive with the [`math`] module
+    /// This is often useful when interacting with the [`math`] module
     /// manually.
     ///
     /// [`math`]: crate::math
@@ -288,7 +288,7 @@ impl StatusSnapshot<'static> {
         Self {
             source: &[],
             target: &[],
-            job: &[],
+            job: None,
         }
     }
 }
@@ -297,7 +297,7 @@ impl<'a> Buffs for StatusSnapshot<'a> {
     // doing these functions using iterators was less concise because of the incoming vs outgoing difference
     fn damage(&self, base: u64, dmg_ty: DamageType, dmg_el: DamageElement) -> u64 {
         let mut acc = base;
-        for x in self.job {
+        if let Some(x) = self.job {
             acc = x.damage(base, dmg_ty, dmg_el);
         }
         for x in self.target {
@@ -315,7 +315,7 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 
     fn crit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
-        for x in self.job {
+        if let Some(x) = self.job {
             acc += x.crit();
         }
         for x in self.target {
@@ -333,7 +333,7 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 
     fn dhit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
-        for x in self.job {
+        if let Some(x) = self.job {
             acc += x.dhit();
         }
         for x in self.target {
@@ -364,7 +364,7 @@ impl<'a> Buffs for StatusSnapshot<'a> {
     // jobs have more than one speed boost
     fn haste(&self, base: u64) -> u64 {
         let mut acc = 100;
-        for x in self.job {
+        if let Some(x) = self.job {
             acc *= x.haste();
             acc /= 100;
         }
@@ -819,12 +819,13 @@ pub trait StatusEventExt<'w, W: World + 'w>: EventSink<'w, W> {
         &mut self,
         status: StatusEffect,
         damage: DamageInstance,
+        stat: SpeedStat,
         stacks: u8,
         target: ActorId,
         time: u32,
     ) {
         let actor = self.source();
-        let snapshot = actor.dot_damage_snapshot(damage, target);
+        let snapshot = actor.dot_damage_snapshot(damage, stat, target);
         self.event(
             StatusEvent::apply_dot(status, snapshot, stacks, actor.id(), target).into(),
             time,

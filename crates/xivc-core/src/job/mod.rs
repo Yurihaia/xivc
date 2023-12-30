@@ -40,7 +40,7 @@ pub mod sam;
 ///
 /// It is not fully intended to be used as an actual trait, but also
 /// as an organizational guideline when interacting with specific jobs.
-pub trait Job {
+pub trait Job: 'static {
     /// The actions this job can cast.
     type Action: JobAction + 'static;
     /// The job gauge state, action cooldowns, and active combos for this job.
@@ -60,6 +60,8 @@ pub trait Job {
     ///
     /// This should be `()` for any job that does not need a custom event.
     type Event: Clone + Debug + 'static;
+    /// The set of cooldowns for this job's actions.
+    type Cds: Clone + Debug + 'static;
     /// The cooldown groups for this job's actions.
     type CdGroup: Copy + Debug + 'static;
 
@@ -71,20 +73,10 @@ pub trait Job {
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
+        cds: &Self::Cds,
         world: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup>;
-
-    /// Sets the cooldown of a certain cooldown group.
-    ///
-    /// The final three parameters of this function correspond to the `cd` field
-    /// of the [`CastInitInfo`] returned by [`check_cast`]. This function
-    /// will typically be implemented with a single function call to the `apply`
-    /// function of a [job cooldown struct].
-    ///
-    /// [`check_cast`]: Job::check_cast
-    /// [job cooldown struct]: crate::job_cd_struct!
-    fn set_cd(state: &mut Self::State, group: Self::CdGroup, cooldown: u32, charges: u8);
 
     /// Executes the specified action.
     ///
@@ -107,6 +99,7 @@ pub trait Job {
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
+        cds: &mut Self::Cds,
         world: &'w W,
         event_sink: &mut E,
     );
@@ -123,6 +116,7 @@ pub trait Job {
     #[allow(unused_variables)]
     fn event<'w, E: EventSink<'w, W>, W: World>(
         state: &mut Self::State,
+        cds: &mut Self::Cds,
         world: &'w W,
         event: &Event,
         event_sink: &mut E,
@@ -130,14 +124,14 @@ pub trait Job {
         // don't require an impl
     }
 
-    /// Returns a list of [`JobEffect`]s that should be active based
-    /// on the job state.
+    /// Returns a [`JobEffect`] associated with the job, or `None` if the job
+    /// has no job effects.
     ///
     /// This should be used to implement things such as the "Army's Paeon" haste on Bard,
     /// the Darkside gauge on Dark Knight, Enochian on Black Mage, etc.
     #[allow(unused_variables)]
-    fn effects<'a>(state: &'a Self::State) -> impl AsRef<[&'a dyn JobEffect]> {
-        &[]
+    fn effect<'a>(state: &'a Self::State) -> Option<&'a dyn JobEffect> {
+        None
     }
 }
 
@@ -192,12 +186,141 @@ pub struct CastInitInfo<C: 'static> {
     pub alt_cd: Option<(C, u32, u8)>,
 }
 
+impl<C: 'static> CastInitInfo<C> {
+    fn map_cd_group<T>(self, f: impl Fn(C) -> T) -> CastInitInfo<T> {
+        CastInitInfo {
+            gcd: self.gcd,
+            lock: self.lock,
+            snap: self.snap,
+            cd: self.cd.map(|v| (f(v.0), v.1, v.2)),
+            alt_cd: self.alt_cd.map(|v| (f(v.0), v.1, v.2)),
+        }
+    }
+}
+
 macro_rules! helper {
     (
         $(
             $enum_name:ident $evfn:ident $var_name:ident $job:ty { $job_name:literal }
         )*
     ) => {
+        #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        /// A particular [`Job`].
+        pub enum DynJob {
+            $(
+                /// The job
+                #[doc = concat!("\"", $job_name, "\".")]
+                $var_name,
+            )*
+        }
+        impl DynJob {
+            /// Checks that a certain action may be casted, and returns
+            /// cooldown information for that action.
+            ///
+            /// See [`Job::check_cast`] for more information.
+            pub fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+                &self,
+                action: Action,
+                state: &State,
+                cds: &Cds,
+                world: &'w W,
+                event_sink: &mut E,
+            ) -> CastInitInfo<CdGroup> {
+                match (self, action, state, cds) {
+                    $(
+                        (
+                            Self::$var_name,
+                            Action::$var_name(action),
+                            State::$var_name(state),
+                            Cds::$var_name(cds),
+                        ) => <$job>::check_cast(action, state, cds, world, event_sink)
+                                .map_cd_group(CdGroup::$var_name),
+                    )*
+                    _ => panic!("`action`, `state`, and `cds` do not match job type.")
+                }
+            }
+
+            /// Executes the specified action.
+            ///
+            /// See [`Job::cast_snap`] for more information.
+            pub fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+                &self,
+                action: Action,
+                state: &mut State,
+                cds: &mut Cds,
+                world: &'w W,
+                event_sink: &mut E,
+            ) {
+                match (self, action, state, cds) {
+                    $(
+                        (
+                            Self::$var_name,
+                            Action::$var_name(action),
+                            State::$var_name(state),
+                            Cds::$var_name(cds),
+                        ) => <$job>::cast_snap(action, state, cds, world, event_sink),
+                    )*
+                    _ => panic!("`action`, `state`, and `cds` do not match job type.")
+                }
+            }
+
+            /// Reacts to an event.
+            ///
+            /// See [`Job::event`] for more information.
+            pub fn event<'w, E: EventSink<'w, W>, W: World>(
+                &self,
+                state: &mut State,
+                cds: &mut Cds,
+                world: &'w W,
+                event: &Event,
+                event_sink: &mut E,
+            ) {
+                match (self, state, cds) {
+                    $(
+                        (
+                            Self::$var_name,
+                            State::$var_name(state),
+                            Cds::$var_name(cds),
+                        ) => <$job>::event(state, cds, world, event, event_sink),
+                    )*
+                    _ => panic!("`state` and `cds` do not match job type.")
+                }
+            }
+
+            /// Returns a [`JobEffect`] associated with the job, or `None` if the job
+            /// has no job effects.
+            ///
+            /// See [`Job::effect`] for more information.
+            pub fn effect<'a>(&self, state: &'a State) -> Option<&'a dyn JobEffect> {
+                match (self, state) {
+                    $(
+                        (
+                            Self::$var_name,
+                            State::$var_name(state)
+                        ) => <$job>::effect(state),
+                    )*
+                    _ => panic!("`state` does not match job type.")
+                }
+            }
+
+            /// Returns the job associated with the enum variant.
+            pub fn job(&self) -> $crate::enums::Job {
+                match self {
+                    $(Self::$var_name => $crate::enums::Job::$enum_name,)*
+                }
+            }
+
+            /// Returns the enum variant associated with the job.
+            ///
+            /// Panics if the job type is not yet implemented.
+            pub fn from_job(job: $crate::enums::Job) -> Self {
+                match job {
+                    $($crate::enums::Job::$enum_name => Self::$var_name,)*
+                    _ => panic!("Job not yet implemented."),
+                }
+            }
+        }
         helper!(
             #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
             #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -252,6 +375,26 @@ macro_rules! helper {
                 /// The state for the job
                 #[doc = concat!("\"", $job_name, "\".")]
                 $enum_name, <$job as $crate::job::Job>::State, $job, $var_name
+            )*
+        );
+        helper!(
+            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+            #[derive(Copy, Clone, Debug)]
+            /// The cooldown groups of a particular [`Job`].
+            enum CdGroup, $(
+                /// The cooldown group for the job
+                #[doc = concat!("\"", $job_name, "\".")]
+                $enum_name, <$job as $crate::job::Job>::CdGroup, $job, $var_name
+            )*
+        );
+        helper!(
+            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+            #[derive(Clone, Debug)]
+            /// The cooldowns of a particular [`Job`].
+            enum Cds, $(
+                /// The cooldowns for the job
+                #[doc = concat!("\"", $job_name, "\".")]
+                $enum_name, <$job as $crate::job::Job>::Cds, $job, $var_name
             )*
         );
         helper!(
@@ -321,7 +464,7 @@ macro_rules! helper {
                 }
             }
         )*
-    }
+    };
 }
 
 helper! {

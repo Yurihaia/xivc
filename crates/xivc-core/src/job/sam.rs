@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     enums::{ActionCategory, DamageInstance},
     job::{Job, JobState},
-    job_cd_struct, need_target, status_effect,
+    job_cd_struct,
+    math::SpeedStat,
+    need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
@@ -48,10 +50,12 @@ impl Job for SamJob {
     type CastError = SamError;
     type Event = ();
     type CdGroup = SamCdGroup;
+    type Cds = SamCds;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
+        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -67,18 +71,6 @@ impl Job for SamJob {
             .map(|v| (v, action.cooldown(), action.cd_charges()));
 
         let alt_cd = action.alt_cd_group().map(|v| (v, 1000, 1));
-
-        // check errors
-        if let Some((cdg, cd, charges)) = cd {
-            if !state.cds.available(cdg, cd, charges) {
-                event_sink.error(EventError::Cooldown(action.into()));
-            }
-        }
-        if let Some((cdg, cd, charges)) = alt_cd {
-            if !state.cds.available(cdg, cd, charges) {
-                event_sink.error(EventError::Cooldown(action.into()));
-            }
-        }
 
         use SamAction::*;
         if state.kenki < action.kenki_cost() {
@@ -121,13 +113,10 @@ impl Job for SamJob {
         }
     }
 
-    fn set_cd(state: &mut Self::State, group: Self::CdGroup, cooldown: u32, charges: u8) {
-        state.cds.apply(group, cooldown, charges);
-    }
-
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
+        _: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
@@ -424,7 +413,14 @@ impl Job for SamJob {
                 state.combos.kaeshi.set(KaeshiCombo::Higanbana);
                 state.sen.clear();
                 event_sink.damage(action, DamageInstance::new(200).slashing(), t, dl);
-                event_sink.apply_dot(HIGANBANA, DamageInstance::new(45).slashing(), 1, t, dl);
+                event_sink.apply_dot(
+                    HIGANBANA,
+                    DamageInstance::new(45).slashing(),
+                    SpeedStat::SkillSpeed,
+                    1,
+                    t,
+                    dl,
+                );
             }
             TenkaGoken => {
                 state.meditation += 1;
@@ -452,7 +448,14 @@ impl Job for SamJob {
                 state.meditation += 1;
                 state.combos.kaeshi.reset();
                 event_sink.damage(action, DamageInstance::new(200).slashing(), t, dl);
-                event_sink.apply_dot(HIGANBANA, DamageInstance::new(45).slashing(), 1, t, dl);
+                event_sink.apply_dot(
+                    HIGANBANA,
+                    DamageInstance::new(45).slashing(),
+                    SpeedStat::SkillSpeed,
+                    1,
+                    t,
+                    dl,
+                );
             }
             KaeshiGoken => {
                 state.meditation += 1;
@@ -753,8 +756,6 @@ impl From<SamAction> for Action {
 #[derive(Clone, Debug, Default)]
 /// The state of the Samurai job gauges, cooldowns, and combos.
 pub struct SamState {
-    /// The cooldowns for Samurai actions.
-    pub cds: SamCds,
     /// The combos for Samurai.
     pub combos: SamCombos,
     /// The Sen gauge.
@@ -768,7 +769,6 @@ pub struct SamState {
 impl JobState for SamState {
     fn advance(&mut self, time: u32) {
         self.combos.advance(time);
-        self.cds.advance(time);
     }
 }
 

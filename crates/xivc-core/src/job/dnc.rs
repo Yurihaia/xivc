@@ -90,10 +90,12 @@ impl Job for DncJob {
     type CastError = DncError;
     type Event = ();
     type CdGroup = DncCdGroup;
+    type Cds = DncCds;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
+        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -107,13 +109,6 @@ impl Job for DncJob {
         let cd = action
             .cd_group()
             .map(|v| (v, action.cooldown(), action.cd_charges()));
-
-        // check errors
-        if let Some((cdg, cd, charges)) = cd {
-            if !state.cds.available(cdg, cd, charges) {
-                event_sink.error(EventError::Cooldown(action.into()));
-            }
-        }
 
         use DncAction::*;
         match action {
@@ -181,13 +176,10 @@ impl Job for DncJob {
         }
     }
 
-    fn set_cd(state: &mut Self::State, group: Self::CdGroup, cooldown: u32, charges: u8) {
-        state.cds.apply(group, cooldown, charges);
-    }
-
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
+        _: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
@@ -903,8 +895,6 @@ impl From<DncAction> for Action {
 #[derive(Clone, Debug, Default)]
 /// The state of the Dancer job gauges and cooldowns.
 pub struct DncState {
-    /// The cooldowns for Dancer actions.
-    pub cds: DncCds,
     /// The combos for Dancer.
     pub combos: DncCombos,
     /// The Fourfold Feathers gauge.
@@ -919,9 +909,7 @@ pub struct DncState {
 }
 
 impl JobState for DncState {
-    fn advance(&mut self, time: u32) {
-        self.cds.advance(time);
-    }
+    fn advance(&mut self, _: u32) {}
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

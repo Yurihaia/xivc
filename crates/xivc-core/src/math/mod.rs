@@ -136,9 +136,6 @@ pub struct XivMath {
     /// The information of the player.
     pub info: PlayerInfo,
     /// Extra animation lock.
-    ///
-    /// This is often going to be the ping to the servers plus
-    /// some value accounting for FPS.
     pub ex_lock: u16,
 }
 
@@ -186,6 +183,17 @@ impl HitTypeHandle {
     /// [`Force`]: Self::Force
     pub const fn is_force(&self) -> bool {
         matches!(self, Self::Force)
+    }
+
+    /// Returns [`Force`] if `force` is `true`. Otherwise, returns `self`.
+    ///
+    /// [`Force`]: Self::Force
+    pub const fn set_force(self, force: bool) -> Self {
+        if force {
+            HitTypeHandle::Force
+        } else {
+            self
+        }
     }
 }
 
@@ -524,7 +532,7 @@ impl XivMath {
     /// Calculates the damage of an auto attack with a certain `potency` will do.
     /// The damage depends on the type of `stat` used, the job `traits`, whether or not the
     /// action `crit` or `dhit`, and a random modifier `rand` between `9500` and `10500` inclusive.
-    /// The potency is 100 for ARC/BRD/MCH, and 110 for all other classes/jobs.
+    /// The potency is 80 for ARC/BRD/MCH, and 90 for all other classes/jobs.
     pub fn aa_damage(
         &self,
         potency: u64,
@@ -556,8 +564,17 @@ impl XivMath {
     /// Calculates the cast or recast time of an action that uses `speed_stat`.
     /// `base` is the time in milliseconds for the base scaled duration length.
     /// The output of this function is the time in milliseconds.
-    pub fn action_cast_length(&self, base: u64, speed_stat: SpeedStat, buffs: &impl Buffs) -> u64 {
-        buffs.haste(base * (2000 - self.speed_mod(speed_stat)) / 1000)
+    pub fn action_cast_length(
+        &self,
+        base: u64,
+        speed_stat: Option<SpeedStat>,
+        buffs: &impl Buffs,
+    ) -> u64 {
+        if let Some(speed_stat) = speed_stat {
+            buffs.haste(base * (2000 - self.speed_mod(speed_stat)) / 1000)
+        } else {
+            buffs.haste(base)
+        }
     }
 }
 

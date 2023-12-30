@@ -9,7 +9,9 @@ use crate::{
     bool_job_dist,
     enums::{ActionCategory, DamageInstance},
     job::{CastInitInfo, Job, JobState},
-    job_cd_struct, job_effect_wrapper, need_target, status_effect,
+    job_cd_struct, job_effect_wrapper,
+    math::SpeedStat,
+    need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::GaugeU8,
     world::{
@@ -95,11 +97,13 @@ impl Job for BrdJob {
     type State = BrdState;
     type CastError = BrdError;
     type Event = BrdEvent;
+    type Cds = BrdCds;
     type CdGroup = BrdCdGroup;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
+        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -115,18 +119,6 @@ impl Job for BrdJob {
             .map(|v| (v, action.cooldown(), action.cd_charges()));
 
         let alt_cd = action.cd_group().map(|v| (v, 1000, 1));
-
-        // check errors
-        if let Some((cdg, cd, charges)) = cd {
-            if !state.cds.available(cdg, cd, charges) {
-                event_sink.error(EventError::Cooldown(action.into()));
-            }
-        }
-        if let Some((cdg, cd, charges)) = alt_cd {
-            if !state.cds.available(cdg, cd, charges) {
-                event_sink.error(EventError::Cooldown(action.into()));
-            }
-        }
 
         use BrdAction::*;
         match action {
@@ -157,13 +149,10 @@ impl Job for BrdJob {
         }
     }
 
-    fn set_cd(state: &mut Self::State, group: Self::CdGroup, cooldown: u32, charges: u8) {
-        state.cds.apply(group, cooldown, charges);
-    }
-
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
+        cds: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
@@ -212,7 +201,14 @@ impl Job for BrdJob {
                 if event_sink.random(StraightShotProc) {
                     event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
                 }
-                event_sink.apply_dot(CAUSTIC_BITE, DamageInstance::new(20).piercing(), 1, t, dl);
+                event_sink.apply_dot(
+                    CAUSTIC_BITE,
+                    DamageInstance::new(20).piercing(),
+                    SpeedStat::SkillSpeed,
+                    1,
+                    t,
+                    dl,
+                );
                 barrage(event_sink, DamageInstance::new(150).piercing(), t, dl);
             }
             Bloodletter => {
@@ -243,7 +239,14 @@ impl Job for BrdJob {
                 if event_sink.random(StraightShotProc) {
                     event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
                 }
-                event_sink.apply_dot(STORMBITE, DamageInstance::new(25).piercing(), 1, t, dl);
+                event_sink.apply_dot(
+                    STORMBITE,
+                    DamageInstance::new(25).piercing(),
+                    SpeedStat::SkillSpeed,
+                    1,
+                    t,
+                    dl,
+                );
                 barrage(event_sink, DamageInstance::new(100).piercing(), t, dl);
             }
             Barrage => {
@@ -348,7 +351,7 @@ impl Job for BrdJob {
             }
             EmpyrealArrow => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                state.repertoire();
+                state.repertoire(cds);
                 event_sink.damage(action, DamageInstance::new(240).piercing(), t, dl);
             }
             IronJaws => {
@@ -362,12 +365,20 @@ impl Job for BrdJob {
                 let t = target_actor.id();
                 // if the target has stormbite/caustic bite, reapply them.
                 if target_actor.has_status(STORMBITE, this_id) {
-                    event_sink.apply_dot(STORMBITE, DamageInstance::new(25).piercing(), 1, t, dl);
+                    event_sink.apply_dot(
+                        STORMBITE,
+                        DamageInstance::new(25).piercing(),
+                        SpeedStat::SkillSpeed,
+                        1,
+                        t,
+                        dl,
+                    );
                 }
                 if target_actor.has_status(CAUSTIC_BITE, this_id) {
                     event_sink.apply_dot(
                         CAUSTIC_BITE,
                         DamageInstance::new(20).piercing(),
+                        SpeedStat::SkillSpeed,
                         1,
                         t,
                         dl,
@@ -465,6 +476,7 @@ impl Job for BrdJob {
 
     fn event<'w, E: EventSink<'w, W>, W: World>(
         state: &mut Self::State,
+        cds: &mut Self::Cds,
         world: &'w W,
         event: &Event,
         event_sink: &mut E,
@@ -498,7 +510,7 @@ impl Job for BrdJob {
                                     } else {
                                         // 80% chance for rep proc
                                         if event_sink.random(RepertoireProc) {
-                                            state.repertoire();
+                                            state.repertoire(cds);
                                         }
 
                                         event_sink.event(
@@ -532,16 +544,16 @@ impl Job for BrdJob {
         }
     }
 
-    fn effects<'a>(state: &'a Self::State) -> impl AsRef<[&'a dyn JobEffect]> {
-        [ArmysJobEffect::new(state)]
+    fn effect<'a>(state: &'a Self::State) -> Option<&'a dyn JobEffect> {
+        Some(BrdJobEffect::new(state))
     }
 }
 
 job_effect_wrapper! {
     #[derive(Debug)]
-    struct ArmysJobEffect(BrdState);
+    struct BrdJobEffect(BrdState);
 }
-impl JobEffect for ArmysJobEffect {
+impl JobEffect for BrdJobEffect {
     fn haste(&self) -> u64 {
         100 - if let Some((BrdSong::Paeon(rep), _)) = &self.0.song {
             rep.value() as u64 * 4
@@ -757,8 +769,6 @@ impl From<BrdAction> for Action {
 #[derive(Clone, Debug, Default)]
 /// The state of the Bard job gauges and cooldowns.
 pub struct BrdState {
-    /// The cooldowns for Bard actions.
-    pub cds: BrdCds,
     /// The Song gauge.
     pub song: Option<(BrdSong, u16)>,
     /// The Soul Voice gauge.
@@ -777,9 +787,8 @@ pub struct BrdState {
 
 impl JobState for BrdState {
     fn advance(&mut self, time: u32) {
-        self.cds.advance(time);
-        if let Some((_, time)) = &mut self.song {
-            *time = time.saturating_sub(*time);
+        if let Some((_, song_time)) = &mut self.song {
+            *song_time = (*song_time as u32).saturating_sub(time) as u16;
             // don't remove the song, the event handler will do that
             // to make sure army's muse gets applied
         }
@@ -788,13 +797,13 @@ impl JobState for BrdState {
 
 impl BrdState {
     /// Grants the repertoire effect based on the current song.
-    pub fn repertoire(&mut self) {
+    pub fn repertoire(&mut self, cds: &mut BrdCds) {
         match &mut self.song {
             Some((song, _)) => {
                 self.soul += 5;
                 match song {
                     // should this be more explicit and manually saturating_sub the value?
-                    BrdSong::Ballad => self.cds.bloodletter.advance(7500),
+                    BrdSong::Ballad => cds.bloodletter.advance(7500),
                     BrdSong::Paeon(rep) => *rep += 1,
                     BrdSong::Minuet(rep) => *rep += 1,
                 };

@@ -249,6 +249,20 @@ impl Job {
             ActionStat::AttackPower
         }
     }
+    /// Returns the potency of auto attacks for the job.
+    pub const fn aa_potency(&self) -> u8 {
+        match self {
+            Self::ARC | Self::BRD | Self::MCH => 80,
+            _ => 90
+        }
+    }
+    /// Returns the damage type of auto attacks for the job.
+    pub const fn aa_type(&self) -> DamageType {
+        match self {
+            Self::BRD | Self::MCH => DamageType::Piercing,
+            _ => DamageType::Slashing,
+        }
+    }
 }
 impl Display for Job {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
