@@ -798,6 +798,7 @@ pub trait StatusEventExt<'w, W: World + 'w>: EventSink<'w, W> {
         stacks: u8,
         target: ActorId,
         delay: u32,
+        cascade: u32,
     ) {
         self.event(
             StatusEvent {
@@ -805,12 +806,12 @@ pub trait StatusEventExt<'w, W: World + 'w>: EventSink<'w, W> {
                 target,
                 status,
                 kind: StatusEventKind::Apply {
-                    duration: status.duration + delay,
+                    duration: status.duration + cascade,
                     stacks,
                 },
             }
             .into(),
-            0,
+            delay,
         )
     }
     /// Applies a DoT status effect with a certain number of stacks on to a target actor.

@@ -59,7 +59,7 @@ impl Job for SamJob {
 
         let di = this.duration_info();
 
-        let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
+        let gcd = action.gcd().map(|v| di.scale(v)).unwrap_or_default() as u16;
         let (lock, snap) = di.get_cast(action.cast(), 600);
 
         let cd = action

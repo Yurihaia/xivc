@@ -161,7 +161,8 @@ pub trait EventSink<'w, W: World> {
     /// opposite of the order they were submitted in. You must be careful if the effect
     /// of an event depends on other events.
     /// Consider using [`events_ordered`] in this situation
-    /// to make the ordering of events explicit.<br><br>
+    /// to make the ordering of events explicit.
+    /// 
     /// However, this ordering may be useful. For example, the [`Job::event`] function can
     /// submit events with a delay of `0`, and those events will be guaranteed to be executed
     /// before any events currently awaiting execution.
@@ -202,6 +203,8 @@ pub trait EventSink<'w, W: World> {
     /// to override specific instances of distributions with other custom values.
     /// Because of this, it is recommended that users of this method create custom [`Distribution`]
     /// implementations for the various sources of randomness within a job.
+    /// 
+    /// [`TypeId`]: core::any::TypeId
     fn random<D, T>(&mut self, distr: D) -> T
     where
         D: Distribution<T> + 'static,

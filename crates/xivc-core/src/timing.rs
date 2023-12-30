@@ -16,11 +16,10 @@ use crate::math::SpeedStat;
 /// [`StatusEffect`]: crate::world::status::StatusEffect
 /// [`Actor::duration_info`]: crate::world::Actor
 pub trait DurationInfo {
-    /// Returns the cast lock and cast snapshot time for a specific [`ScaleTime`].
+    /// Returns the cast lock and cast snapshot time (respectively) for a specific [`ScaleTime`].
     ///
-    /// The `lock` parameter is the animation lock if the action is an instant cast.<br>
-    /// This function returns a tuple of `(lock, snapshot)`.
-    ///
+    /// The `lock` parameter is the animation lock if the action is an instant cast.
+    /// 
     /// # Examples
     /// ```
     /// # use xivc_core::timing::{ScaleTime, DurationInfo};
@@ -28,7 +27,7 @@ pub trait DurationInfo {
     /// // Create a scalable duration
     /// let scale_time = ScaleTime::spell(150);
     /// // Get the scaled duration
-    /// let scaled_time = duration_info.get_duration(scale_time) as u16;
+    /// let scaled_time = duration_info.scale(scale_time);
     /// // Get the lock and snapshot for scale_time as a cast
     /// let (lock, snapshot) = duration_info.get_cast(scale_time, 600);
     ///
@@ -39,7 +38,7 @@ pub trait DurationInfo {
     /// # }
     /// ```
     fn get_cast(&self, base: ScaleTime, lock: u16) -> (u16, u16) {
-        let cast = self.get_duration(base) as u16;
+        let cast = self.scale(base) as u16;
         (
             match cast {
                 0 => lock + self.extra_ani_lock(),
@@ -60,15 +59,15 @@ pub trait DurationInfo {
     /// # use xivc_core::timing::{ScaleTime, DurationInfo};
     /// # fn example(duration_info: &impl DurationInfo) {
     /// // create a scaled time for a weaponskill with a recast of 2.50s
-    /// let scaled_one = duration_info.get_duration(ScaleTime::skill(2500));
+    /// let scaled_one = duration_info.scale(ScaleTime::skill(2500));
     /// // create a scaled time for a weaponskill with a recast of 5.00s
-    /// let scaled_two = duration_info.get_duration(ScaleTime::skill(5000));
+    /// let scaled_two = duration_info.scale(ScaleTime::skill(5000));
     ///
-    /// // .get_duration() will always scale uniformly
+    /// // .scale() will always scale uniformly
     /// assert!(scaled_one < scaled_two);
     /// # }
     /// ```
-    fn get_duration(&self, duration: ScaleTime) -> u64;
+    fn scale(&self, duration: ScaleTime) -> u32;
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

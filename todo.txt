@@ -1,0 +1,2 @@
+* check actual durations of all buffs. start with noticable ones like burst damage buffs.
+* figure out application delays for all actions.

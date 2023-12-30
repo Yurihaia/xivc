@@ -15,8 +15,8 @@ use crate::{
     util::{combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, Actor, ActorId, DamageEventExt, EventError, EventSink,
-        Faction, World,
+        Action, ActionTargetting, Actor, ActorId, DamageEventExt, EventError, EventSink, Faction,
+        World,
     },
 };
 
@@ -101,7 +101,7 @@ impl Job for DncJob {
 
         let di = this.duration_info();
 
-        let gcd = action.gcd().map(|v| di.get_duration(v)).unwrap_or_default() as u16;
+        let gcd = action.gcd().map(|v| di.scale(v)).unwrap_or_default() as u16;
         let (lock, snap) = di.get_cast(ScaleTime::zero(), 600);
 
         let cd = action
@@ -156,6 +156,12 @@ impl Job for DncJob {
             }
             Flourish if !this.in_combat() => {
                 event_sink.error(EventError::InCombat);
+            }
+            ClosedPosition if state.partner.is_some() => {
+                DncError::PartnerActive.submit(event_sink);
+            }
+            Ending if state.partner.is_none() => {
+                DncError::PartnerInactive.submit(event_sink);
             }
             _ => (),
         }
@@ -391,16 +397,21 @@ impl Job for DncJob {
                     return;
                 }
 
-                // remove partner
-                if consume_status(event_sink, CLOSED_POSITION, 0) {
-                    if let Some(partner) = state.partner {
-                        event_sink.remove_status(DANCE_PARTNER, partner, 0);
-                        state.partner = None;
-                    }
-                } else {
-                    event_sink.apply_status(DANCE_PARTNER, 1, t, dl);
-                    event_sink.apply_status(CLOSED_POSITION, 1, this_id, dl);
-                    state.partner = Some(t);
+                // remove partner. this is to maintain a consistent state
+                // if the action is executed despite an error being present.
+                if let Some(partner) = state.partner {
+                    event_sink.remove_status(DANCE_PARTNER, partner, 0);
+                    event_sink.remove_status(CLOSED_POSITION, this_id, 0);
+                }
+                event_sink.apply_status(DANCE_PARTNER, 1, t, dl);
+                event_sink.apply_status(CLOSED_POSITION, 1, this_id, dl);
+                state.partner = Some(t);
+            }
+            Ending => {
+                if let Some(partner) = state.partner {
+                    event_sink.remove_status(DANCE_PARTNER, partner, 0);
+                    event_sink.remove_status(CLOSED_POSITION, this_id, 0);
+                    state.partner = None;
                 }
             }
             Devilment => {
@@ -567,44 +578,46 @@ impl Job for DncJob {
                     4 => (1200, Some(TECHNICAL_FINISH_4)),
                     _ => (360, None), // game says 350 but i think thats a typo
                 };
-                let mut first_enemy = true;
-                let mut cascade = EventCascade::new(dl, 3);
-                // todo: figure out if this is actually how it works
-                // i know that if you are inside the bosses hitbox, it gives an extra
-                // 3 ticks of buff duration, which implies that
-                // it iterates over both the enemies and party members at the same time
-                for t in this.actors_for_action(None, ActionTargetting::circle(30)) {
-                    let t_id = t.id();
-                    match t.faction() {
-                        Faction::Enemy if this.within_range(t_id, DANCE) => {
-                            let potency = if first_enemy {
-                                first_enemy = false;
-                                potency
-                            } else {
-                                potency / 4
-                            };
-                            event_sink.damage(
-                                action,
-                                DamageInstance::new(potency).slashing(),
+                let mut cascade = EventCascade::new(dl, 1);
+                let mut first = true;
+                for t in target_enemy(DANCE) {
+                    let potency = if first {
+                        first = false;
+                        potency
+                    } else {
+                        potency / 4
+                    };
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(potency).slashing(),
+                        t,
+                        cascade.next(),
+                    );
+                }
+
+                if let Some(status) = status {
+                    let iter = this.actors_for_action(None, ActionTargetting::circle(30));
+                    // TODO: Verify technical step buff delay
+                    let delay = 650;
+                    let mut cascade = EventCascade::new(delay, 3);
+                    for t in iter {
+                        let t_id = t.id();
+                        event_sink.apply_status_cascade_remove(
+                            status,
+                            1,
+                            t_id,
+                            delay,
+                            cascade.next(),
+                        );
+                        if !t.has_status(STANDARD_ESPIT, this_id) {
+                            event_sink.apply_status_cascade_remove(
+                                TECHNICAL_ESPIT,
+                                1,
                                 t_id,
+                                delay,
                                 cascade.next(),
                             );
                         }
-                        Faction::Party => {
-                            if let Some(status) = status {
-                                let next = cascade.next();
-                                // this buff gets applied instantly
-                                // but cascades as it falls off.
-                                event_sink.apply_status_cascade_remove(status, 1, t_id, next);
-                                event_sink.apply_status_cascade_remove(
-                                    TECHNICAL_ESPIT,
-                                    1,
-                                    t_id,
-                                    next,
-                                );
-                            }
-                        }
-                        _ => (),
                     }
                 }
                 event_sink.apply_status(FLOURISH_FINISH, 1, this_id, 0);
@@ -665,7 +678,7 @@ pub enum DncError {
     Flow,
     /// Not under the effect of Flourishing Finish.
     Tillana,
-    /// Improvisation is not active.
+    // Improvisation is not active.
     // ImprovFinish,
     /// Not under the effect of Standard Step.
     StandardStep,
@@ -675,6 +688,10 @@ pub enum DncError {
     Step,
     /// Under the effect of Standard/Technical Step.
     StepInvalid,
+    /// Closed Position is not the active action.
+    PartnerActive,
+    /// Ending is not the active action.
+    PartnerInactive,
 }
 impl DncError {
     /// Submits the cast error into the [`EventSink`].
@@ -795,6 +812,10 @@ pub enum DncAction {
     #[cooldown = 30000]
     #[name = "Closed Position"]
     ClosedPosition,
+    #[ability]
+    #[cooldown = 1000]
+    #[name = "Ending"]
+    Ending,
     #[ability]
     #[cooldown = 120000]
     #[name = "Devilment"]
@@ -1023,7 +1044,7 @@ job_cd_struct! {
     "Shield Samba"
     samba Samba: ShieldSamba;
     "Closed Position"
-    closed Closed: ClosedPosition;
+    closed Closed: ClosedPosition Ending;
     "Devilment"
     devilment Devilment: Devilment;
     "Fan Dance III"
@@ -1055,10 +1076,12 @@ impl Distribution<[Step; 2]> for StdStepSeqence {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [Step; 2] {
         use Step::*;
         let mut steps = [Emboite, Entrechat, Jete, Pirouette];
-        steps.shuffle(rng);
+        steps.partial_shuffle(rng, 2);
         [steps[0], steps[1]]
     }
 }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
 /// The random event for a technical step sequence.
 pub struct TechStepSeqence;
 impl Distribution<[Step; 4]> for TechStepSeqence {

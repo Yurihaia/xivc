@@ -172,12 +172,7 @@ pub struct CastInitInfo<C: 'static> {
     /// instantly cast actions.
     pub lock: u16,
     /// The amount of time before the cast snapshots.
-    ///
-    /// This should be `0` for instant cast actions,
-    /// and almost always `lock - 60` for cast actions.
     pub snap: u16,
-    // i'm like 99% sure there are no actions
-    // that don't trigger more than 1 cd group.
     /// The cooldown for the action to apply.
     ///
     /// The items in this tuple are:

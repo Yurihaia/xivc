@@ -177,14 +177,13 @@ impl<E> RadixEventQueue<E> {
     pub fn drain_top(&mut self) -> (u32, DrainTop<'_, E>) {
         // if the first bucket is empty,
         // reassign all of the elements to match
-        if self.buckets[0].vec.is_empty() {
+        if self.head.is_empty() {
             self.reassign();
         };
-        let head = &mut self.buckets[0];
         (
-            head.min,
+            self.time,
             DrainTop {
-                inner: head.vec.drain(..),
+                inner: self.head.drain(..),
             },
         )
     }
@@ -274,15 +273,14 @@ impl<E> RadixEventQueue<E> {
 ///
 /// This `struct` is created by [`RadixEventQueue::drain_top`]. See its documentation for more.
 pub struct DrainTop<'a, E> {
-    inner: alloc::vec::Drain<'a, (u32, E)>,
+    inner: alloc::vec::Drain<'a, E>,
 }
 
 impl<'a, E> Iterator for DrainTop<'a, E> {
     type Item = E;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (_, e) = self.inner.next_back()?;
-        Some(e)
+        self.inner.next_back()
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -295,8 +293,7 @@ impl<'a, E> FusedIterator for DrainTop<'a, E> {}
 
 impl<'a, E> DoubleEndedIterator for DrainTop<'a, E> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        let (_, e) = self.inner.next()?;
-        Some(e)
+        self.inner.next()
     }
 }
 

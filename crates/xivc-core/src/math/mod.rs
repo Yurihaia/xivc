@@ -339,7 +339,7 @@ impl XivMath {
         let atk_mod = data::atk_mod(self.info.job, self.info.lvl);
         if main < lvl_main {
             // seems to work. pretty sure div_ceil is correct here.
-            100 - div_ceil(atk_mod * (lvl_main - main), lvl_main)
+            100 - (atk_mod * (lvl_main - main)).div_ceil(lvl_main)
         } else {
             atk_mod * (main - lvl_main) / lvl_main + 100
         }
@@ -444,7 +444,6 @@ impl XivMath {
     /// The damage depends on the type of `stat` used, the job `traits`, whether or not the
     /// action `crit` or `dhit`, and a random modifier `rand` between `9500` and `10500` inclusive.
     // TODO: write examples
-    #[rustfmt::skip]
     #[allow(clippy::too_many_arguments)]
     pub fn action_damage(
         &self,
@@ -462,6 +461,7 @@ impl XivMath {
         let this = self.with_stats(buffs);
         // The exact order is unknown, and should only lead to ~1-2 damage variation.
         // This order is used by Ari in their tank calc sheet.
+        #[rustfmt::skip]
         let prerand = potency
             * this.atk_damage(stat) / 100
             * this.det_damage(dhit.is_force()) / 1000
@@ -469,20 +469,18 @@ impl XivMath {
             * this.wd_mod(stat) / 100
             * this.job_trait_mod() / 100
             + (potency < 100) as u64;
+        #[rustfmt::skip]
         let prebuff = prerand
             * this.crit_mod(crit, buffs) / 1000000
             * this.dhit_mod(dhit, buffs) / 1000000
             * rand / 10000;
-        buffs.damage(
-            prebuff, dmg_ty, dmg_el
-        )
+        buffs.damage(prebuff, dmg_ty, dmg_el)
     }
 
     /// Calculates the damage a damage over time tick with a certain `potency` will do.
     /// The damage depends on the type of `stat` used, the job `traits`,
     /// the type of `speed_stat` that the action was modified by,
     /// and the chance the dot has to `crit` or `dhit`,
-    #[rustfmt::skip]
     #[allow(clippy::too_many_arguments)]
     pub fn dot_damage_snapshot(
         &self,
@@ -516,12 +514,10 @@ impl XivMath {
             _ => panic!("ActionStat::HealingMagic cannot be used in XivMath::dot_damage_snapshot"),
         };
         EotSnapshot {
-            base: buffs.damage(
-                prerand, dmg_ty, dmg_el
-            ),
+            base: buffs.damage(prerand, dmg_ty, dmg_el),
             crit_chance: buffs.crit_chance(this.crit_chance()) as u16,
             dhit_chance: buffs.dhit_chance(this.dhit_chance()) as u16,
-            crit_damage: this.crit_damage() as u16
+            crit_damage: this.crit_damage() as u16,
         }
     }
 
@@ -529,7 +525,6 @@ impl XivMath {
     /// The damage depends on the type of `stat` used, the job `traits`, whether or not the
     /// action `crit` or `dhit`, and a random modifier `rand` between `9500` and `10500` inclusive.
     /// The potency is 100 for ARC/BRD/MCH, and 110 for all other classes/jobs.
-    #[rustfmt::skip]
     pub fn aa_damage(
         &self,
         potency: u64,
@@ -541,6 +536,7 @@ impl XivMath {
         buffs: &impl Buffs,
     ) -> u64 {
         let this = self.with_stats(buffs);
+        #[rustfmt::skip]
         let prerng = potency
             * this.atk_damage(ActionStat::AttackPower) / 100
             * this.det_damage(dhit.is_force()) / 1000
@@ -549,13 +545,12 @@ impl XivMath {
             * this.aa_mod() / 100
             * this.job_trait_mod() / 100
             + (potency < 100) as u64;
+        #[rustfmt::skip]
         let prebuff = prerng
             * this.crit_mod(crit, buffs) / 1000000
             * this.dhit_mod(dhit, buffs) / 1000000
             * rand / 10000;
-        buffs.damage(
-            prebuff, dmg_ty, dmg_el,
-        )
+        buffs.damage(prebuff, dmg_ty, dmg_el)
     }
 
     /// Calculates the cast or recast time of an action that uses `speed_stat`.
@@ -639,17 +634,5 @@ impl EotSnapshot {
             HitTypeHandle::Yes => damage * 1000,
             HitTypeHandle::No => 1000000,
         }
-    }
-}
-
-// shamelessly stolen from rust stdlib
-// why is this not stable yet
-const fn div_ceil(lhs: u64, rhs: u64) -> u64 {
-    let d = lhs / rhs;
-    let r = lhs % rhs;
-    if r > 0 && rhs > 0 {
-        d + 1
-    } else {
-        d
     }
 }
