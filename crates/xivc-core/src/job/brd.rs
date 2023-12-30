@@ -103,7 +103,6 @@ impl Job for BrdJob {
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
-        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -152,7 +151,6 @@ impl Job for BrdJob {
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
-        cds: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
@@ -351,7 +349,7 @@ impl Job for BrdJob {
             }
             EmpyrealArrow => {
                 let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                state.repertoire(cds);
+                repertoire(state, this_id, event_sink);
                 event_sink.damage(action, DamageInstance::new(240).piercing(), t, dl);
             }
             IronJaws => {
@@ -476,7 +474,6 @@ impl Job for BrdJob {
 
     fn event<'w, E: EventSink<'w, W>, W: World>(
         state: &mut Self::State,
-        cds: &mut Self::Cds,
         world: &'w W,
         event: &Event,
         event_sink: &mut E,
@@ -510,7 +507,7 @@ impl Job for BrdJob {
                                     } else {
                                         // 80% chance for rep proc
                                         if event_sink.random(RepertoireProc) {
-                                            state.repertoire(cds);
+                                            repertoire(state, this_id, event_sink);
                                         }
 
                                         event_sink.event(
@@ -795,21 +792,24 @@ impl JobState for BrdState {
     }
 }
 
-impl BrdState {
-    /// Grants the repertoire effect based on the current song.
-    pub fn repertoire(&mut self, cds: &mut BrdCds) {
-        match &mut self.song {
-            Some((song, _)) => {
-                self.soul += 5;
-                match song {
-                    // should this be more explicit and manually saturating_sub the value?
-                    BrdSong::Ballad => cds.bloodletter.advance(7500),
-                    BrdSong::Paeon(rep) => *rep += 1,
-                    BrdSong::Minuet(rep) => *rep += 1,
-                };
-            }
-            _ => (),
+fn repertoire<'w, W: World>(
+    state: &mut BrdState,
+    this_id: ActorId,
+    event_sink: &mut impl EventSink<'w, W>,
+) {
+    match &mut state.song {
+        Some((song, _)) => {
+            state.soul += 5;
+            match song {
+                // should this be more explicit and manually saturating_sub the value?
+                BrdSong::Ballad => {
+                    event_sink.event(Event::AdvCd(BrdCdGroup::Bloodletter.into(), this_id), 0)
+                }
+                BrdSong::Paeon(rep) => *rep += 1,
+                BrdSong::Minuet(rep) => *rep += 1,
+            };
         }
+        _ => (),
     }
 }
 

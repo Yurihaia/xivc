@@ -73,7 +73,6 @@ pub trait Job: 'static {
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
-        cds: &Self::Cds,
         world: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup>;
@@ -99,7 +98,6 @@ pub trait Job: 'static {
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
-        cds: &mut Self::Cds,
         world: &'w W,
         event_sink: &mut E,
     );
@@ -116,7 +114,6 @@ pub trait Job: 'static {
     #[allow(unused_variables)]
     fn event<'w, E: EventSink<'w, W>, W: World>(
         state: &mut Self::State,
-        cds: &mut Self::Cds,
         world: &'w W,
         event: &Event,
         event_sink: &mut E,
@@ -223,21 +220,19 @@ macro_rules! helper {
                 &self,
                 action: Action,
                 state: &State,
-                cds: &Cds,
                 world: &'w W,
                 event_sink: &mut E,
             ) -> CastInitInfo<CdGroup> {
-                match (self, action, state, cds) {
+                match (self, action, state) {
                     $(
                         (
                             Self::$var_name,
                             Action::$var_name(action),
                             State::$var_name(state),
-                            Cds::$var_name(cds),
-                        ) => <$job>::check_cast(action, state, cds, world, event_sink)
+                        ) => <$job>::check_cast(action, state, world, event_sink)
                                 .map_cd_group(CdGroup::$var_name),
                     )*
-                    _ => panic!("`action`, `state`, and `cds` do not match job type.")
+                    _ => panic!("`action` and `state` do not match job type.")
                 }
             }
 
@@ -248,20 +243,18 @@ macro_rules! helper {
                 &self,
                 action: Action,
                 state: &mut State,
-                cds: &mut Cds,
                 world: &'w W,
                 event_sink: &mut E,
             ) {
-                match (self, action, state, cds) {
+                match (self, action, state) {
                     $(
                         (
                             Self::$var_name,
                             Action::$var_name(action),
                             State::$var_name(state),
-                            Cds::$var_name(cds),
-                        ) => <$job>::cast_snap(action, state, cds, world, event_sink),
+                        ) => <$job>::cast_snap(action, state, world, event_sink),
                     )*
-                    _ => panic!("`action`, `state`, and `cds` do not match job type.")
+                    _ => panic!("`action` and `state` do not match job type.")
                 }
             }
 
@@ -271,20 +264,18 @@ macro_rules! helper {
             pub fn event<'w, E: EventSink<'w, W>, W: World>(
                 &self,
                 state: &mut State,
-                cds: &mut Cds,
                 world: &'w W,
                 event: &Event,
                 event_sink: &mut E,
             ) {
-                match (self, state, cds) {
+                match (self, state) {
                     $(
                         (
                             Self::$var_name,
                             State::$var_name(state),
-                            Cds::$var_name(cds),
-                        ) => <$job>::event(state, cds, world, event, event_sink),
+                        ) => <$job>::event(state, world, event, event_sink),
                     )*
-                    _ => panic!("`state` and `cds` do not match job type.")
+                    _ => panic!("`state` does not match job type.")
                 }
             }
 

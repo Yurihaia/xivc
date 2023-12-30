@@ -66,7 +66,6 @@ impl Job for RprJob {
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
-        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -151,7 +150,6 @@ impl Job for RprJob {
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
-        _: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
@@ -491,7 +489,6 @@ impl Job for RprJob {
 
     fn event<'w, E: EventSink<'w, W>, W: World>(
         _: &mut Self::State,
-        _: &mut Self::Cds,
         world: &'w W,
         event: &Event,
         event_sink: &mut E,

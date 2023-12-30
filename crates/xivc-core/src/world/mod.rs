@@ -237,6 +237,7 @@ pub enum Event {
     Damage(DamageEvent),
     Status(StatusEvent),
     Job(job::JobEvent, ActorId),
+    AdvCd(job::CdGroup, ActorId),
     MpTick(ActorId),
     ActorTick(ActorId),
 }

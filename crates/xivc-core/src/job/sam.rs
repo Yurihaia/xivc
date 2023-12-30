@@ -55,7 +55,6 @@ impl Job for SamJob {
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &Self::State,
-        _: &Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) -> CastInitInfo<Self::CdGroup> {
@@ -116,7 +115,6 @@ impl Job for SamJob {
     fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
         state: &mut Self::State,
-        _: &mut Self::Cds,
         _: &'w W,
         event_sink: &mut E,
     ) {
