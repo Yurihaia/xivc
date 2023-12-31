@@ -253,7 +253,7 @@ impl Job {
     pub const fn aa_potency(&self) -> u8 {
         match self {
             Self::ARC | Self::BRD | Self::MCH => 80,
-            _ => 90
+            _ => 90,
         }
     }
     /// Returns the damage type of auto attacks for the job.

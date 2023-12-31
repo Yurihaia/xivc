@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bool_job_dist,
     enums::{ActionCategory, DamageInstance},
-    job::{CastInitInfo, Job, JobState},
+    job::{CastInitInfo, Job, JobAction, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pot, ComboState, GaugeU8},
@@ -19,8 +19,6 @@ use crate::{
         World,
     },
 };
-
-use super::JobAction;
 
 /// The [`Job`] struct for Dancer.
 #[derive(Clone, Copy, Debug, Default)]
@@ -90,7 +88,7 @@ impl Job for DncJob {
     type CastError = DncError;
     type Event = ();
     type CdGroup = DncCdGroup;
-    type Cds = DncCds;
+    type CdMap<T> = DncCdMap<T>;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
@@ -1009,8 +1007,8 @@ job_cd_struct! {
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
-    /// The active cooldowns for Dancer actions.
-    pub DncCds
+    /// The cooldown map for Dancer actions.
+    pub DncCdMap
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]

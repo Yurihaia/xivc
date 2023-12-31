@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bool_job_dist,
     enums::{ActionCategory, DamageInstance},
-    job::{CastInitInfo, Job, JobState},
+    job::{CastInitInfo, Job, JobAction, JobEvent, JobState},
     job_cd_struct, job_effect_wrapper,
     math::SpeedStat,
     need_target, status_effect,
@@ -20,8 +20,6 @@ use crate::{
         Faction, World,
     },
 };
-
-use super::{JobAction, JobEvent};
 
 /// The [`Job`] struct for Bard.
 #[derive(Clone, Copy, Debug, Default)]
@@ -97,8 +95,8 @@ impl Job for BrdJob {
     type State = BrdState;
     type CastError = BrdError;
     type Event = BrdEvent;
-    type Cds = BrdCds;
     type CdGroup = BrdCdGroup;
+    type CdMap<T> = BrdCdMap<T>;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
@@ -838,7 +836,7 @@ impl BrdSong {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Default)]
-/// The Sen gauge.
+/// The Coda gauge.
 pub struct Coda {
     bits: u8,
 }
@@ -874,8 +872,8 @@ job_cd_struct! {
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
-    /// The active cooldowns for Bard actions.
-    pub BrdCds
+    /// The cooldown map for Bard actions.
+    pub BrdCdMap
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]

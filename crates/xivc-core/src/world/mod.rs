@@ -40,7 +40,9 @@ pub trait World {
     where
         Self: 'w;
     /// The [`DurationInfo`] that each actor can return.
-    type DurationInfo<'w>: DurationInfo where Self: 'w;
+    type DurationInfo<'w>: DurationInfo
+    where
+        Self: 'w;
 
     /// Returns the actor with the specified [`id`], or [`None`]
     /// if no actor with the id exists.

@@ -3,6 +3,8 @@
 //! This module contains various utilities for working
 //! with durations and cooldowns.
 
+use core::{marker::PhantomData, mem, ptr::NonNull};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +21,7 @@ pub trait DurationInfo {
     /// Returns the cast lock and cast snapshot time (respectively) for a specific [`ScaleTime`].
     ///
     /// The `lock` parameter is the animation lock if the action is an instant cast.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// # use xivc_core::timing::{ScaleTime, DurationInfo};
@@ -247,12 +249,12 @@ macro_rules! job_cd_struct {
         )*
     ) => {
         $(#[$cds_meta])*
-        $cds_vis struct $cds_id {
+        $cds_vis struct $cds_id<T> {
             $(
                 $(#[$cdsf_meta])*
                 /// The cooldown of
                 #[doc = concat!($cd_names, '.')]
-                $cdsf_name: $crate::timing::ActionCd,
+                $cdsf_name: T,
             )*
         }
 
@@ -266,49 +268,45 @@ macro_rules! job_cd_struct {
             )*
         }
 
-        impl $cds_id {
-            /// Applies a cooldown to the specified [cooldown group].
-            ///
-            /// [cooldown group]:
-            #[doc = stringify!($cdg_id)]
-            pub fn apply(&mut self, cdg: $cdg_id, cooldown: u32, charges: u8) {
+        impl<T> $cds_id<T> {
+            /// Returns a reference to the value associated with the cooldown group.
+            pub fn get(&self, cdg: $cdg_id) -> &T {
                 match cdg {
                     $(
-                        $cdg_id::$cdgv_name => self.$cdsf_name.apply(cooldown, charges),
+                        $cdg_id::$cdgv_name => &self.$cdsf_name,
                     )*
                 }
             }
-
-            /// Checks if the specified [cooldown group] is available.
-            ///
-            /// [cooldown group]:
-            #[doc = stringify!($cdg_id)]
-            pub fn available(&self, cdg: $cdg_id, cooldown: u32, charges: u8) -> bool {
+            /// Returns a mutable reference to the value associated with the cooldown group.
+            pub fn get_mut(&mut self, cdg: $cdg_id) -> &mut T {
                 match cdg {
                     $(
-                        $cdg_id::$cdgv_name => self.$cdsf_name.available(cooldown, charges),
+                        $cdg_id::$cdgv_name => &mut self.$cdsf_name,
                     )*
                 }
             }
-
-            /// Advances the cooldowns forward by a certain amount of time.
-            ///
-            /// See TODO: Advance Functions for more information.
-            pub fn advance(&mut self, time: u32) {
-                $(self.$cdsf_name.advance(time);)*
+            /// Returns an iterator over the values in this cooldown map.
+            pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T> {
+                $crate::timing::CdMapIter::new(self, Self::iter_get)
+            }
+            /// Returns a mutable iterator over the values in this cooldown map.
+            pub fn iter_mut(&mut self) -> $crate::timing::CdMapIterMut<'_, T> {
+                $crate::timing::CdMapIterMut::new(self, Self::iter_get_mut)
             }
 
-            /// Returns the cooldown until the specified [cooldown group] can be used.
-            ///
-            /// [cooldown group]:
-            #[doc = stringify!($cdg_id)]
-            pub fn cd_until(&self, group: $cdg_id, cooldown: u32, charges: u8) -> u32 {
-                match group {
-                    $(
-                        $cdg_id::$cdgv_name => self.$cdsf_name.cd_until(cooldown, charges),
-                    )*
-                }
+            fn iter_get(&self, index: usize) -> Option<&T> {
+                Some(self.get(*Self::GROUPS.get(index)?))
             }
+            fn iter_get_mut(&mut self, index: usize) -> Option<&mut T> {
+                Some(self.get_mut(*Self::GROUPS.get(index)?))
+            }
+
+            /// The cooldown groups associated with this cooldown map.
+            pub const GROUPS: &'static [$cdg_id] = &[
+                $(
+                    $cdg_id::$cdgv_name,
+                )*
+            ];
         }
 
         impl $acty {
@@ -330,10 +328,72 @@ macro_rules! job_cd_struct {
     };
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+/// An iterator over the values in a cooldown map.
+pub struct CdMapIter<'a, T: 'a> {
+    map: NonNull<()>,
+    get: fn(NonNull<()>, usize) -> Option<NonNull<T>>,
+    index: usize,
+    marker: PhantomData<&'a T>,
+}
+
+impl<'a, T: 'a> CdMapIter<'a, T> {
+    /// Creates a new cooldown map iterator from a map and a get function.
+    pub fn new<M>(map: &M, get: fn(&M, usize) -> Option<&T>) -> Self {
+        Self {
+            map: NonNull::from(map).cast(),
+            get: unsafe { mem::transmute(get) },
+            index: 0,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: 'a> Iterator for CdMapIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let out = (self.get)(self.map, self.index)?;
+        self.index += 1;
+        unsafe { Some(out.as_ref()) }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+/// An iterator over the values in a cooldown map.
+pub struct CdMapIterMut<'a, T: 'a> {
+    map: NonNull<()>,
+    get: fn(NonNull<()>, usize) -> Option<NonNull<T>>,
+    index: usize,
+    marker: PhantomData<&'a mut T>,
+}
+
+impl<'a, T: 'a> CdMapIterMut<'a, T> {
+    /// Creates a new cooldown map iterator from a map and a get function.
+    pub fn new<M>(map: &mut M, get: fn(&mut M, usize) -> Option<&mut T>) -> Self {
+        Self {
+            map: NonNull::from(map).cast(),
+            get: unsafe { mem::transmute(get) },
+            index: 0,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: 'a> Iterator for CdMapIterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut out = (self.get)(self.map, self.index)?;
+        self.index += 1;
+        unsafe { Some(out.as_mut()) }
+    }
+}
+
 /// A utility for effect cascading.
 ///
 /// In FFXIV, most effects "cascade" when they hit multiple targets,
-/// each target being hit some multiple of `45ms` after the last . This struct
+/// each target being hit some multiple of `45ms` after the last. This struct
 /// provides a simple interface to start a cascade from a specified delay.
 ///
 /// # Examples

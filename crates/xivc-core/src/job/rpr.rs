@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     enums::{ActionCategory, DamageInstance},
-    job::{CastInitInfo, Job, JobState},
+    job::{CastInitInfo, Job, JobAction, JobState},
     job_cd_struct, need_target, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
@@ -17,8 +17,6 @@ use crate::{
         Positional, World,
     },
 };
-
-use super::{role::MeleeRoleAction, JobAction};
 
 /// The [`Job`] struct for Reaper.
 #[derive(Clone, Copy, Debug, Default)]
@@ -61,7 +59,7 @@ impl Job for RprJob {
     type CastError = RprError;
     type Event = ();
     type CdGroup = RprCdGroup;
-    type Cds = RprCds;
+    type CdMap<T> = RprCdMap<T>;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
@@ -483,7 +481,6 @@ impl Job for RprJob {
                 }
                 state.void_shroud -= 2;
             }
-            Role(action) => action.cast(event_sink),
         }
     }
 
@@ -757,11 +754,6 @@ pub enum RprAction {
     #[cooldown = 1000]
     #[name = "Lemure's Scythe"]
     LemuresScythe,
-    #[name((ac) => ac.name())]
-    #[category((ac) => ac.category())]
-    #[cooldown((ac) => ac.cooldown())]
-    #[cd_charges((ac) => ac.cd_charges())]
-    Role(MeleeRoleAction),
 }
 
 impl JobAction for RprAction {
@@ -846,8 +838,8 @@ job_cd_struct! {
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
-    /// The active cooldowns for Reaper actions.
-    pub RprCds
+    /// The cooldown map for Reaper actions.
+    pub RprCdMap
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]

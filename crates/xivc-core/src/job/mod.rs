@@ -60,8 +60,8 @@ pub trait Job: 'static {
     ///
     /// This should be `()` for any job that does not need a custom event.
     type Event: Clone + Debug + 'static;
-    /// The set of cooldowns for this job's actions.
-    type Cds: Clone + Debug + 'static;
+    /// The a set of values associated with each of this job's cooldown groups.
+    type CdMap<T>;
     /// The cooldown groups for this job's actions.
     type CdGroup: Copy + Debug + 'static;
 
@@ -378,16 +378,45 @@ macro_rules! helper {
                 $enum_name, <$job as $crate::job::Job>::CdGroup, $job, $var_name
             )*
         );
-        helper!(
-            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-            #[derive(Clone, Debug)]
-            /// The cooldowns of a particular [`Job`].
-            enum Cds, $(
-                /// The cooldowns for the job
+        #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+        #[derive(Clone, Debug)]
+        /// A map of values to the cooldown groups of a particular [`Job`].
+        pub enum CdMap<T> {
+            $(
+                /// The cooldown map for the job
                 #[doc = concat!("\"", $job_name, "\".")]
-                $enum_name, <$job as $crate::job::Job>::Cds, $job, $var_name
+                $var_name(<$job as $crate::job::Job>::CdMap<T>),
             )*
-        );
+        }
+
+        impl<T> CdMap<T> {
+            /// Returns the job associated with the enum variant.
+            pub fn job(&self) -> $crate::enums::Job {
+                match self {
+                    $(Self::$var_name(_) => $crate::enums::Job::$enum_name,)*
+                }
+            }
+            /// Returns an iterator over the values in this cooldown map.
+            pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T> {
+                match self {
+                    $(Self::$var_name(v) => v.iter(),)*
+                }
+            }
+            /// Returns a mutable iterator over the values in this cooldown map.
+            pub fn iter_mut(&mut self) -> $crate::timing::CdMapIterMut<'_, T> {
+                match self {
+                    $(Self::$var_name(v) => v.iter_mut(),)*
+                }
+            }
+        }
+        $(
+            impl<T> From<<$job as $crate::job::Job>::CdMap<T>> for CdMap<T> {
+                fn from(val: <$job as $crate::job::Job>::CdMap<T>) -> Self {
+                    Self::$var_name(val)
+                }
+            }
+        )*
+
         helper!(
             #[derive(Clone, Debug)]
             /// An event specific to some particular [`Job`].

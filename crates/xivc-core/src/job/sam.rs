@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     enums::{ActionCategory, DamageInstance},
-    job::{Job, JobState},
+    job::{CastInitInfo, Job, JobAction, JobState},
     job_cd_struct,
     math::SpeedStat,
     need_target, status_effect,
@@ -19,8 +19,6 @@ use crate::{
         Positional, World,
     },
 };
-
-use super::{role::MeleeRoleAction, CastInitInfo, JobAction};
 
 // so i can be lazy with associated constant derives
 #[derive(Copy, Clone, Debug, Default)]
@@ -50,7 +48,7 @@ impl Job for SamJob {
     type CastError = SamError;
     type Event = ();
     type CdGroup = SamCdGroup;
-    type Cds = SamCds;
+    type CdMap<T> = SamCdMap<T>;
 
     fn check_cast<'w, E: EventSink<'w, W>, W: World>(
         action: Self::Action,
@@ -498,7 +496,6 @@ impl Job for SamJob {
                     );
                 }
             }
-            Role(action) => action.cast(event_sink),
         }
     }
 }
@@ -731,11 +728,6 @@ pub enum SamAction {
     #[gcd = ScaleTime::skill(2500)]
     #[name = "Kaeshi: Namikiri"]
     KaeshiNamikiri,
-    #[name((ac) => ac.name())]
-    #[category((ac) => ac.category())]
-    #[cooldown((ac) => ac.cooldown())]
-    #[cd_charges((ac) => ac.cd_charges())]
-    Role(MeleeRoleAction),
 }
 
 impl JobAction for SamAction {
@@ -882,8 +874,8 @@ job_cd_struct! {
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Clone, Debug, Default)]
-    /// The active cooldowns for Samurai actions.
-    pub SamCds
+    /// The cooldown map for Samurai actions.
+    pub SamCdMap
 
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, Debug)]
