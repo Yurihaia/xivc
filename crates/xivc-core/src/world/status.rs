@@ -22,7 +22,7 @@
 
 use core::{
     fmt::{self, Debug},
-    hash,
+    hash, iter,
     ops::Deref,
 };
 
@@ -224,6 +224,21 @@ pub trait JobEffect: Debug {
     }
 }
 
+impl<'a> JobEffect for &'a dyn JobEffect {
+    fn damage(&self, damage: u64, dmg_ty: DamageType, dmg_el: DamageElement) -> u64 {
+        <dyn JobEffect>::damage(self, damage, dmg_ty, dmg_el)
+    }
+    fn crit(&self) -> u64 {
+        <dyn JobEffect>::crit(self)
+    }
+    fn dhit(&self) -> u64 {
+        <dyn JobEffect>::dhit(self)
+    }
+    fn haste(&self) -> u64 {
+        <dyn JobEffect>::haste(self)
+    }
+}
+
 #[macro_export]
 /// Creates a named wrapper around a job's state that can implement
 /// [`JobEffect`].
@@ -257,13 +272,13 @@ macro_rules! job_effect_wrapper {
 
 #[derive(Debug)]
 /// A snapshot of the statuses for some event.
-pub struct StatusSnapshot<'a> {
+pub struct StatusSnapshot<S, T, J> {
     /// The status effects present on the source of the event.
-    pub source: &'a [StatusInstance],
+    pub source: S,
     /// The status effects present on the target of the event.
     ///
     /// This may be empty if no meaningful target exists.
-    pub target: &'a [StatusInstance],
+    pub target: T,
     // this is a list of all of the "status effects" that come from
     // job gauge or trait related things
     // some examples of this include: darkside, army's paeon haste, enochian,
@@ -274,10 +289,12 @@ pub struct StatusSnapshot<'a> {
     ///
     /// This may be empty if the source has no job effects, or
     /// if the source is not a player.
-    pub job: Option<&'a dyn JobEffect>,
+    pub job: Option<J>,
 }
 
-impl StatusSnapshot<'static> {
+impl
+    StatusSnapshot<iter::Empty<StatusInstance>, iter::Empty<StatusInstance>, &'static dyn JobEffect>
+{
     /// Creates an empty status snapshot.
     ///
     /// This is often useful when interacting with the [`math`] module
@@ -286,28 +303,45 @@ impl StatusSnapshot<'static> {
     /// [`math`]: crate::math
     pub const fn empty() -> Self {
         Self {
-            source: &[],
-            target: &[],
+            source: iter::empty(),
+            target: iter::empty(),
             job: None,
         }
     }
 }
 
-impl<'a> Buffs for StatusSnapshot<'a> {
+impl<S, T, J> StatusSnapshot<S, T, J> {
+    /// Creates a new status snapshot from the source & target status iterators,
+    /// and an optional job effect.
+    pub fn new(source: S, target: T, job: Option<J>) -> Self {
+        Self {
+            source,
+            target,
+            job,
+        }
+    }
+}
+
+impl<S, T, J> Buffs for StatusSnapshot<S, T, J>
+where
+    S: Iterator<Item = StatusInstance> + Clone,
+    T: Iterator<Item = StatusInstance> + Clone,
+    J: JobEffect,
+{
     // doing these functions using iterators was less concise because of the incoming vs outgoing difference
     fn damage(&self, base: u64, dmg_ty: DamageType, dmg_el: DamageElement) -> u64 {
         let mut acc = base;
-        if let Some(x) = self.job {
+        if let Some(x) = &self.job {
             acc = x.damage(base, dmg_ty, dmg_el);
         }
-        for x in self.target {
+        for x in self.target.clone() {
             if let Some(f) = x.effect.damage.incoming {
-                acc = f(*x, acc, dmg_ty, dmg_el);
+                acc = f(x, acc, dmg_ty, dmg_el);
             }
         }
-        for x in self.source {
+        for x in self.source.clone() {
             if let Some(f) = x.effect.damage.outgoing {
-                acc = f(*x, acc, dmg_ty, dmg_el);
+                acc = f(x, acc, dmg_ty, dmg_el);
             }
         }
         acc
@@ -315,17 +349,17 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 
     fn crit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
-        if let Some(x) = self.job {
+        if let Some(x) = &self.job {
             acc += x.crit();
         }
-        for x in self.target {
+        for x in self.target.clone() {
             if let Some(f) = x.effect.crit.incoming {
-                acc += f(*x);
+                acc += f(x);
             }
         }
-        for x in self.source {
+        for x in self.source.clone() {
             if let Some(f) = x.effect.crit.outgoing {
-                acc += f(*x);
+                acc += f(x);
             }
         }
         acc.min(100)
@@ -333,17 +367,17 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 
     fn dhit_chance(&self, base: u64) -> u64 {
         let mut acc = base;
-        if let Some(x) = self.job {
+        if let Some(x) = &self.job {
             acc += x.dhit();
         }
-        for x in self.target {
+        for x in self.target.clone() {
             if let Some(f) = x.effect.dhit.incoming {
-                acc += f(*x);
+                acc += f(x);
             }
         }
-        for x in self.source {
+        for x in self.source.clone() {
             if let Some(f) = x.effect.dhit.outgoing {
-                acc += f(*x);
+                acc += f(x);
             }
         }
         acc.min(100)
@@ -351,9 +385,9 @@ impl<'a> Buffs for StatusSnapshot<'a> {
 
     fn stats(&self, base: PlayerStats) -> PlayerStats {
         let mut acc = base;
-        for x in self.source {
+        for x in self.source.clone() {
             if let Some(f) = x.effect.stats {
-                acc = f(*x, acc);
+                acc = f(x, acc);
             }
         }
         acc
@@ -364,13 +398,13 @@ impl<'a> Buffs for StatusSnapshot<'a> {
     // jobs have more than one speed boost
     fn haste(&self, base: u64) -> u64 {
         let mut acc = 100;
-        if let Some(x) = self.job {
+        if let Some(x) = &self.job {
             acc *= x.haste();
             acc /= 100;
         }
-        for x in self.source {
+        for x in self.source.clone() {
             if let Some(f) = x.effect.haste {
-                acc *= f(*x);
+                acc *= f(x);
                 acc /= 100;
             }
         }

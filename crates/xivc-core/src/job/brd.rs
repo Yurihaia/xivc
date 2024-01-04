@@ -761,7 +761,7 @@ impl From<BrdAction> for Action {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The state of the Bard job gauges and cooldowns.
 pub struct BrdState {
     /// The Song gauge.
@@ -812,7 +812,7 @@ fn repertoire<'w, W: World>(
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// The state of the Bard Song gauge.
 pub enum BrdSong {
     /// Mage's Ballad is active.
@@ -835,7 +835,7 @@ impl BrdSong {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The Coda gauge.
 pub struct Coda {
     bits: u8,
@@ -884,14 +884,14 @@ job_cd_struct! {
     raging Raging: RagingStrikes;
     "Bloodletter/Rain of Death"
     bloodletter Bloodletter: Bloodletter RainOfDeath;
-    "Repelling Shot"
-    repelling Repelling: RepellingShot;
+    // "Repelling Shot"
+    // repelling Repelling: RepellingShot;
     "Barrage"
     barrage Barrage: Barrage;
     "Mage's Ballad"
     ballad Ballad: MagesBallad;
-    "The Warden's Paean"
-    paean Paean: WardensPaean;
+    // "The Warden's Paean"
+    // paean Paean: WardensPaean;
     "Army's Paeon"
     paeon Paeon: ArmysPaeon;
     "Battle Voice"
@@ -902,10 +902,10 @@ job_cd_struct! {
     empyreal Empyreal: EmpyrealArrow;
     "Sidewinder"
     sidewinder Sidewinder: Sidewinder;
-    "Troubadour"
-    troubadour Troubadour: Troubadour;
-    "Nature's Minne"
-    minne Minne: NaturesMinne;
+    // "Troubadour"
+    // troubadour Troubadour: Troubadour;
+    // "Nature's Minne"
+    // minne Minne: NaturesMinne;
     "Radiant Finale"
     finale Finale: RadiantFinale;
     "Pitch Perfect"

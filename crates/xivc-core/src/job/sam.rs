@@ -743,7 +743,7 @@ impl From<SamAction> for Action {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The state of the Samurai job gauges, cooldowns, and combos.
 pub struct SamState {
     /// The combos for Samurai.
@@ -763,7 +763,7 @@ impl JobState for SamState {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The combos for Samurai.
 pub struct SamCombos {
     /// The main combo.
@@ -837,7 +837,7 @@ pub enum KaeshiCombo {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The Sen gauge.
 pub struct Sen {
     bits: u8,

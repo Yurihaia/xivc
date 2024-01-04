@@ -127,7 +127,7 @@ pub trait Job: 'static {
     /// This should be used to implement things such as the "Army's Paeon" haste on Bard,
     /// the Darkside gauge on Dark Knight, Enochian on Black Mage, etc.
     #[allow(unused_variables)]
-    fn effect<'a>(state: &'a Self::State) -> Option<&'a dyn JobEffect> {
+    fn effect<'a>(state: &'a Self::State) -> Option<&'a (dyn JobEffect + 'a)> {
         None
     }
 }
@@ -283,7 +283,7 @@ macro_rules! helper {
             /// has no job effects.
             ///
             /// See [`Job::effect`] for more information.
-            pub fn effect<'a>(&self, state: &'a State) -> Option<&'a dyn JobEffect> {
+            pub fn effect<'a>(&self, state: &'a State) -> Option<&'a (dyn JobEffect + 'a)> {
                 match (self, state) {
                     $(
                         (
@@ -308,7 +308,7 @@ macro_rules! helper {
             pub fn from_job(job: $crate::enums::Job) -> Self {
                 match job {
                     $($crate::enums::Job::$enum_name => Self::$var_name,)*
-                    _ => panic!("Job not yet implemented."),
+                    _ => unimplemented!("Job '{}' not yet implemented.", job),
                 }
             }
         }
@@ -360,7 +360,7 @@ macro_rules! helper {
         }
         helper!(
             #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-            #[derive(Clone, Debug)]
+            #[derive(Clone, Debug, PartialEq, Eq)]
             /// The state of a particular [`Job`].
             enum State, $(
                 /// The state for the job
@@ -368,6 +368,25 @@ macro_rules! helper {
                 $enum_name, <$job as $crate::job::Job>::State, $job, $var_name
             )*
         );
+        impl State {
+            /// Advances the state for the job by a certain amount of time.
+            pub fn advance(&mut self, time: u32) {
+                match self {
+                    $(
+                        Self::$var_name(v) => v.advance(time),
+                    )*
+                }
+            }
+            /// Returns the default state for some specific job.
+            pub fn default_for(job: $crate::enums::Job) -> Self {
+                match job {
+                    $(
+                        $crate::enums::Job::$enum_name => Self::$var_name(Default::default()),
+                    )*
+                    _ => unimplemented!("Job '{}' not yet implemented.", job),
+                }
+            }
+        }
         helper!(
             #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
             #[derive(Copy, Clone, Debug)]
@@ -378,6 +397,7 @@ macro_rules! helper {
                 $enum_name, <$job as $crate::job::Job>::CdGroup, $job, $var_name
             )*
         );
+        
         #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
         #[derive(Clone, Debug)]
         /// A map of values to the cooldown groups of a particular [`Job`].

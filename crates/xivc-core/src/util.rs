@@ -45,7 +45,7 @@ pub const fn pos_pot(base: u64, if_pos: u64, pos: bool) -> u64 {
 
 // i don't think there will ever be any gauge that needs a u16+
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// A struct that that is used to keep track off
 /// various job gauges in the game.
 ///
@@ -383,7 +383,7 @@ macro_rules! need_target {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[allow(missing_docs)]
 /// The state of an action combo.
 ///

@@ -888,7 +888,7 @@ impl From<DncAction> for Action {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The state of the Dancer job gauges and cooldowns.
 pub struct DncState {
     /// The combos for Dancer.
@@ -909,7 +909,7 @@ impl JobState for DncState {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The Dance Step gauge.
 pub enum StepGauge {
     #[default]
@@ -966,7 +966,7 @@ pub enum Step {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The combos for Dancer.
 pub struct DncCombos {
     /// The main combo.
@@ -1021,12 +1021,12 @@ job_cd_struct! {
     fan_1 Fan1: FanDance;
     "Fan Dance II"
     fan_2 Fan2: FanDance2;
-    "En Avant"
-    en_avant EnAvant: EnAvant;
-    "Curing Waltz"
-    waltz Waltz: CuringWaltz;
-    "Shield Samba"
-    samba Samba: ShieldSamba;
+    // "En Avant"
+    // en_avant EnAvant: EnAvant;
+    // "Curing Waltz"
+    // waltz Waltz: CuringWaltz;
+    // "Shield Samba"
+    // samba Samba: ShieldSamba;
     "Closed Position"
     closed Closed: ClosedPosition Ending;
     "Devilment"
@@ -1037,8 +1037,8 @@ job_cd_struct! {
     tech Tech: TechnicalStep;
     "Flourish"
     flourish Flourish: Flourish;
-    "Improvisation"
-    improv Improv: Improvisation;
+    // "Improvisation"
+    // improv Improv: Improvisation;
     "Fan Dance IV"
     fan_4 Fan4: FanDance4;
     "Improvised Finish"

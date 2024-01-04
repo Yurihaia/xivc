@@ -769,7 +769,7 @@ impl From<RprAction> for Action {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The state of the Reaper job gauges, cooldowns, and combos.
 pub struct RprState {
     /// The combos for Reaper.
@@ -791,7 +791,7 @@ impl JobState for RprState {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// The combos for Reaper.
 pub struct RprCombos {
     /// The main combo.
