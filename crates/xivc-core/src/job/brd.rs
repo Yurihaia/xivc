@@ -16,8 +16,8 @@ use crate::{
     util::GaugeU8,
     world::{
         status::{consume_status, JobEffect, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, Actor, ActorId, DamageEventExt, Event, EventError, EventSink,
-        Faction, World,
+        Action, ActionTargetting, ActorRef, ActorId, DamageEventExt, Event, EventError, EventSink,
+        Faction, WorldRef,
     },
 };
 
@@ -98,7 +98,7 @@ impl Job for BrdJob {
     type CdGroup = BrdCdGroup;
     type CdMap<T> = BrdCdMap<T>;
 
-    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+    fn check_cast<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
@@ -141,12 +141,13 @@ impl Job for BrdJob {
             gcd,
             lock,
             snap,
+            mp: 0,
             cd,
             alt_cd,
         }
     }
 
-    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+    fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &mut Self::State,
         _: &'w W,
@@ -470,7 +471,7 @@ impl Job for BrdJob {
         }
     }
 
-    fn event<'w, E: EventSink<'w, W>, W: World>(
+    fn event<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         state: &mut Self::State,
         world: &'w W,
         event: &Event,
@@ -576,7 +577,7 @@ pub enum BrdError {
 }
 impl BrdError {
     /// Submits the cast error into the [`EventSink`].
-    pub fn submit<'w, W: World>(self, event_sink: &mut impl EventSink<'w, W>) {
+    pub fn submit<'w, W: WorldRef<'w>>(self, event_sink: &mut impl EventSink<'w, W>) {
         event_sink.error(self.into())
     }
 }
@@ -752,6 +753,10 @@ impl JobAction for BrdAction {
     fn category(&self) -> ActionCategory {
         self.category()
     }
+    
+    fn gcd(&self) -> bool {
+        self.gcd().is_some()
+    }
 }
 
 impl From<BrdAction> for Action {
@@ -790,7 +795,7 @@ impl JobState for BrdState {
     }
 }
 
-fn repertoire<'w, W: World>(
+fn repertoire<'w, W: WorldRef<'w>>(
     state: &mut BrdState,
     this_id: ActorId,
     event_sink: &mut impl EventSink<'w, W>,

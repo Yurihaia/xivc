@@ -31,7 +31,7 @@ use crate::{
     math::{Buffs, EotSnapshot, PlayerStats, SpeedStat},
 };
 
-use super::{Actor, ActorId, EventSink, World};
+use super::{ActorRef, ActorId, EventSink, WorldRef};
 
 #[derive(Debug, Clone, Copy)]
 /// A specific instance of a status effect inflicted upon an actor.
@@ -318,6 +318,18 @@ impl<S, T, J> StatusSnapshot<S, T, J> {
             source,
             target,
             job,
+        }
+    }
+}
+
+impl<S, T> StatusSnapshot<S, T, &'static dyn JobEffect> {
+    /// Creates a new status snapshot from the source & target status iterators,
+    /// without a job effect.
+    pub fn new_no_job(source: S, target: T) -> Self {
+        Self {
+            source,
+            target,
+            job: None,
         }
     }
 }
@@ -611,7 +623,7 @@ impl<T> ValueModifier<T> {
 ///
 /// The `time` parameter is the delay that the Status Remove event
 /// will be submitted at.
-pub fn consume_status<'w, W: World + 'w>(
+pub fn consume_status<'w, W: WorldRef<'w>>(
     event_sink: &mut impl EventSink<'w, W>,
     status: StatusEffect,
     time: u32,
@@ -632,7 +644,7 @@ pub fn consume_status<'w, W: World + 'w>(
 ///
 /// The `time` parameter is the delay that the Status Remove event
 /// will be submitted at.
-pub fn consume_status_stack<'w, W: World + 'w>(
+pub fn consume_status_stack<'w, W: WorldRef<'w>>(
     event_sink: &mut impl EventSink<'w, W>,
     status: StatusEffect,
     time: u32,
@@ -817,7 +829,7 @@ pub enum StatusEventKind {
 }
 
 /// A helper trait for easily submitting status events on to an event sink.
-pub trait StatusEventExt<'w, W: World + 'w>: EventSink<'w, W> {
+pub trait StatusEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
     /// Applies a status effect with a certain number of stacks on to a target actor.
     fn apply_status(&mut self, status: StatusEffect, stacks: u8, target: ActorId, delay: u32) {
         self.event(
@@ -934,4 +946,4 @@ pub trait StatusEventExt<'w, W: World + 'w>: EventSink<'w, W> {
     }
 }
 
-impl<'w, W: World + 'w, E: EventSink<'w, W>> StatusEventExt<'w, W> for E {}
+impl<'w, W: WorldRef<'w>, E: EventSink<'w, W>> StatusEventExt<'w, W> for E {}

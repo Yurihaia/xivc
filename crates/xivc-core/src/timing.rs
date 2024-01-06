@@ -13,10 +13,10 @@ use crate::math::SpeedStat;
 /// A trait that can scale a [`ScaleTime`] based off of
 /// the stats of a player and the [`StatusEffect`]s affecting them.
 ///
-/// This will usually get acquired through [`Actor::duration_info`].
+/// This will usually get acquired through [`ActorRef::duration_info`].
 ///
 /// [`StatusEffect`]: crate::world::status::StatusEffect
-/// [`Actor::duration_info`]: crate::world::Actor
+/// [`ActorRef::duration_info`]: crate::world::ActorRef::duration_info
 pub trait DurationInfo {
     /// Returns the cast lock and cast snapshot time (respectively) for a specific [`ScaleTime`].
     ///
@@ -225,9 +225,9 @@ impl ActionCd {
 /// }
 /// ```
 ///
-/// For an example of what this macro will generate, see [`RprCds`] and [`RprCdGroup`].
+/// For an example of what this macro will generate, see [`RprCdMap`] and [`RprCdGroup`].
 ///
-/// [`RprCds`]: crate::job::rpr::RprCds
+/// [`RprCdMap`]: crate::job::rpr::RprCdMap
 /// [`RprCdGroup`]: crate::job::rpr::RprCdGroup
 #[macro_export]
 macro_rules! job_cd_struct {

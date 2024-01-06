@@ -15,8 +15,8 @@ use crate::{
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, consume_status_stack, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, Actor, DamageEventExt, EventError, EventSink, Faction,
-        Positional, World,
+        Action, ActionTargetting, ActorRef, DamageEventExt, EventError, EventSink, Faction,
+        Positional, WorldRef,
     },
 };
 
@@ -50,7 +50,7 @@ impl Job for SamJob {
     type CdGroup = SamCdGroup;
     type CdMap<T> = SamCdMap<T>;
 
-    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+    fn check_cast<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
@@ -105,12 +105,13 @@ impl Job for SamJob {
             gcd,
             lock,
             snap,
+            mp: 0,
             cd,
             alt_cd,
         }
     }
 
-    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+    fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &mut Self::State,
         _: &'w W,
@@ -518,7 +519,7 @@ pub enum SamError {
 }
 impl SamError {
     /// Submits the cast error into the [`EventSink`].
-    pub fn submit<'w, W: World>(self, p: &mut impl EventSink<'w, W>) {
+    pub fn submit<'w, W: WorldRef<'w>>(self, p: &mut impl EventSink<'w, W>) {
         p.error(self.into())
     }
 }
@@ -733,6 +734,10 @@ pub enum SamAction {
 impl JobAction for SamAction {
     fn category(&self) -> ActionCategory {
         self.category()
+    }
+    
+    fn gcd(&self) -> bool {
+        self.gcd().is_some()
     }
 }
 

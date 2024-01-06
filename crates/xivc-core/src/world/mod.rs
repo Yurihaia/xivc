@@ -1,6 +1,6 @@
 //! The global state of an XIVC simulation.
 //!
-//! This module contains the traits [`World`] and [`Actor`], which can be used to
+//! This module contains the traits [`WorldRef`] and [`ActorRef`], which can be used to
 //! read global state and actor state respectively.
 //!
 //! The [`ActorId`] is an opaque handle for an actor inside the world.
@@ -30,25 +30,21 @@ use self::status::{StatusEffect, StatusEvent, StatusInstance};
 
 /// The global state of the world for a simulation.
 ///
-/// This trait is primarily used for the [`actor`][acfn] function,
-/// which is used to turn an [`ActorId`] into an [`Actor`].
+/// This trait is primarily used for the [`actor`] function,
+/// which is used to turn an [`ActorId`] into an [`ActorRef`].
 ///
-/// [acfn]: World::actor
-pub trait World {
+/// [`actor`]: WorldRef::actor
+pub trait WorldRef<'w>: Clone + Sized {
     /// The type of the actor proxy this world uses.
-    type Actor<'w>: Actor<'w, World = Self>
-    where
-        Self: 'w;
+    type Actor: ActorRef<'w, World = Self>;
     /// The [`DurationInfo`] that each actor can return.
-    type DurationInfo<'w>: DurationInfo
-    where
-        Self: 'w;
+    type DurationInfo: DurationInfo;
 
     /// Returns the actor with the specified [`id`], or [`None`]
     /// if no actor with the id exists.
     ///
     /// [`id`]: ActorId
-    fn actor(&self, id: ActorId) -> Option<Self::Actor<'_>>;
+    fn actor(&self, id: ActorId) -> Option<Self::Actor>;
 }
 
 /// A reference to an actor in the world.
@@ -59,16 +55,16 @@ pub trait World {
 ///
 /// This trait only exposes an immutable API.
 /// To make changes to actors and the world, submit events to an [`EventSink`].
-pub trait Actor<'w>: 'w + Clone + Sized {
+pub trait ActorRef<'w>: Clone + Sized {
     /// The World type that this actor is from.
-    type World: World<Actor<'w> = Self>;
+    type World: WorldRef<'w, Actor = Self>;
 
     /// Returns the [`Id`] of the actor.
     ///
     /// [`Id`]: ActorId
     fn id(&self) -> ActorId;
-    /// Returns the [`World`] the actor is part of.
-    fn world(&self) -> &'w Self::World;
+    /// Returns the [`WorldRef`] the actor is part of.
+    fn world(&self) -> Self::World;
     /// Returns the calculated damage of an attack.
     fn attack_damage(&self, damage: DamageInstance, target: ActorId) -> u64;
     /// Returns the snapshot for a damage over time effect.
@@ -104,7 +100,7 @@ pub trait Actor<'w>: 'w + Clone + Sized {
     }
 
     /// Returns the current target of the actor, or [`None`] if the actor has no target.
-    fn target(&self) -> Option<<Self::World as World>::Actor<'w>>;
+    fn target(&self) -> Option<Self>;
     /// Returns an iterator of the actors in a certain [`Faction`] that will
     /// be hit by an action with the specified [`ActionTargetting`].
     fn actors_for_action(
@@ -115,6 +111,9 @@ pub trait Actor<'w>: 'w + Clone + Sized {
 
     /// Returns `true` if the other actor is within the specified action targetting range.
     fn within_range(&self, other: ActorId, targetting: ActionTargetting) -> bool;
+    
+    /// Returns the amount of MP a player actor has.
+    fn mp(&self) -> u16;
 
     /// Returns the [`Faction`] the actor is part of.
     fn faction(&self) -> Faction;
@@ -124,7 +123,7 @@ pub trait Actor<'w>: 'w + Clone + Sized {
     /// Returns `true` if the actor is currently in combat.
     fn in_combat(&self) -> bool;
     /// Returns the [`DurationInfo`] for this actor.
-    fn duration_info(&self) -> <Self::World as World>::DurationInfo<'_>;
+    fn duration_info(&self) -> <Self::World as WorldRef<'w>>::DurationInfo;
 }
 
 #[derive(Debug, Clone)]
@@ -146,18 +145,18 @@ pub enum EventError {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-/// An ID of an [`Actor`].
+/// An ID of an [`ActorRef`].
 ///
 /// While the value inside this struct is public,
 /// it should be treated as an opaque type,
-/// in the sense that a [`World`] may store data
+/// in the sense that a [`WorldRef`] may store data
 /// in it however it wants to.
 pub struct ActorId(pub u16);
 
 /// A sink for events and errors.
-pub trait EventSink<'w, W: World> {
+pub trait EventSink<'w, W: WorldRef<'w>> {
     /// Returns the source actor that the events will come from.
-    fn source(&self) -> W::Actor<'w>;
+    fn source(&self) -> W::Actor;
     /// Submits an error into the event sink.
     fn error(&mut self, error: EventError);
     /// Submits an event into the event sink to be executed after a specified delay.
@@ -240,6 +239,7 @@ pub enum Event {
     Status(StatusEvent),
     Job(job::JobEvent, ActorId),
     AdvCd(job::CdGroup, ActorId),
+    AddMp(u16, ActorId),
     MpTick(ActorId),
     ActorTick(ActorId),
 }
@@ -274,7 +274,7 @@ impl From<DamageEvent> for Event {
 }
 
 /// A helper trait for easily submitting damage events on to an event sink.
-pub trait DamageEventExt<'w, W: World + 'w>: EventSink<'w, W> {
+pub trait DamageEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
     /// Deals damage to the target after the specified delay.
     fn damage<'a>(
         &mut self,
@@ -291,7 +291,7 @@ pub trait DamageEventExt<'w, W: World + 'w>: EventSink<'w, W> {
         )
     }
 }
-impl<'w, W: World + 'w, E: EventSink<'w, W>> DamageEventExt<'w, W> for E {}
+impl<'w, W: WorldRef<'w>, E: EventSink<'w, W>> DamageEventExt<'w, W> for E {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// An action that an actor can cast.

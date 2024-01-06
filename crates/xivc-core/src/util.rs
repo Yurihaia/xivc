@@ -612,3 +612,49 @@ where
         Err(s)
     }
 }
+
+/// Converts a reference into another type, as long as both types are the same.
+/// If the types do not match, returns [`None`].
+///
+/// This is essentially a version of [`Any::downcast_ref`] that works without
+/// trait objects or unsizing. It mainly is useful for [`EventSink::random`]
+/// implementations to return specific values for the different calls to it.
+///
+/// [`Any::downcast_ref`]: core::any::Any#method.downcast_ref
+/// [`EventSink::random`]: crate::world::EventSink::random
+pub fn convert_ref<S, D>(s: &S) -> Option<&D>
+where
+    S: 'static,
+    D: 'static,
+{
+    if TypeId::of::<S>() == TypeId::of::<D>() {
+        // Safety
+        // S and D are the same type because their TypeIds match.
+        Some(unsafe { &*(s as *const S as *const D) })
+    } else {
+        None
+    }
+}
+
+/// Converts a mutable reference into another type, as long as both types are the same.
+/// If the types do not match, returns [`None`].
+///
+/// This is essentially a version of [`Any::downcast_ref`] that works without
+/// trait objects or unsizing. It mainly is useful for [`EventSink::random`]
+/// implementations to return specific values for the different calls to it.
+///
+/// [`Any::downcast_ref`]: core::any::Any#method.downcast_ref
+/// [`EventSink::random`]: crate::world::EventSink::random
+pub fn convert_mut<S, D>(s: &mut S) -> Option<&mut D>
+where
+    S: 'static,
+    D: 'static,
+{
+    if TypeId::of::<S>() == TypeId::of::<D>() {
+        // Safety
+        // S and D are the same type because their TypeIds match.
+        Some(unsafe { &mut *(s as *mut S as *mut D) })
+    } else {
+        None
+    }
+}

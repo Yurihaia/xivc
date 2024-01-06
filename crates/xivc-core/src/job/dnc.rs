@@ -15,8 +15,8 @@ use crate::{
     util::{combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, Actor, ActorId, DamageEventExt, EventError, EventSink, Faction,
-        World,
+        Action, ActionTargetting, ActorRef, ActorId, DamageEventExt, EventError, EventSink, Faction,
+        WorldRef,
     },
 };
 
@@ -90,7 +90,7 @@ impl Job for DncJob {
     type CdGroup = DncCdGroup;
     type CdMap<T> = DncCdMap<T>;
 
-    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+    fn check_cast<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
@@ -168,12 +168,13 @@ impl Job for DncJob {
             gcd,
             lock,
             snap,
+            mp: 0,
             cd,
             alt_cd: None,
         }
     }
 
-    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+    fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &mut Self::State,
         _: &'w W,
@@ -683,7 +684,7 @@ pub enum DncError {
 }
 impl DncError {
     /// Submits the cast error into the [`EventSink`].
-    pub fn submit<'w, W: World>(self, event_sink: &mut impl EventSink<'w, W>) {
+    pub fn submit<'w, W: WorldRef<'w>>(self, event_sink: &mut impl EventSink<'w, W>) {
         event_sink.error(self.into())
     }
 }
@@ -878,6 +879,10 @@ pub enum DncAction {
 impl JobAction for DncAction {
     fn category(&self) -> ActionCategory {
         self.category()
+    }
+    
+    fn gcd(&self) -> bool {
+        self.gcd().is_some()
     }
 }
 

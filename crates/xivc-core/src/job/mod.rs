@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     enums::ActionCategory,
-    world::{status::JobEffect, ActorId, Event, EventSink, World},
+    world::{status::JobEffect, ActorId, Event, EventSink, WorldRef},
 };
 
 /// Utilities for role actions.
@@ -70,7 +70,7 @@ pub trait Job: 'static {
     ///
     /// This function should be infallible, and the returned [`CastInitInfo`]
     /// should be on a best-effort basis if errors are encountered.
-    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+    fn check_cast<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &Self::State,
         world: &'w W,
@@ -95,7 +95,7 @@ pub trait Job: 'static {
     /// [damage]: crate::world::DamageEvent
     /// [status effect]: crate::world::status::StatusEvent
     /// [`need_target!`]: crate::need_target
-    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+    fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &mut Self::State,
         world: &'w W,
@@ -112,7 +112,7 @@ pub trait Job: 'static {
     ///
     /// [`Event`]: Job::Event
     #[allow(unused_variables)]
-    fn event<'w, E: EventSink<'w, W>, W: World>(
+    fn event<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         state: &mut Self::State,
         world: &'w W,
         event: &Event,
@@ -136,6 +136,8 @@ pub trait Job: 'static {
 pub trait JobAction: Copy + Debug + Eq + Hash {
     /// Returns the action category the action belongs to.
     fn category(&self) -> ActionCategory;
+    /// Returns true if the action is a GCD.
+    fn gcd(&self) -> bool;
 }
 
 /// A trait that all job states need to implement.
@@ -164,6 +166,8 @@ pub struct CastInitInfo<C: 'static> {
     pub lock: u16,
     /// The amount of time before the cast snapshots.
     pub snap: u16,
+    /// The MP cost of the action.
+    pub mp: u16,
     /// The cooldown for the action to apply.
     ///
     /// The items in this tuple are:
@@ -189,6 +193,7 @@ impl<C: 'static> CastInitInfo<C> {
             gcd: self.gcd,
             lock: self.lock,
             snap: self.snap,
+            mp: self.mp,
             cd: self.cd.map(|v| (f(v.0), v.1, v.2)),
             alt_cd: self.alt_cd.map(|v| (f(v.0), v.1, v.2)),
         }
@@ -216,7 +221,7 @@ macro_rules! helper {
             /// cooldown information for that action.
             ///
             /// See [`Job::check_cast`] for more information.
-            pub fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+            pub fn check_cast<'w, E: EventSink<'w, W>, W: WorldRef<'w>>(
                 &self,
                 action: Action,
                 state: &State,
@@ -239,7 +244,7 @@ macro_rules! helper {
             /// Executes the specified action.
             ///
             /// See [`Job::cast_snap`] for more information.
-            pub fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+            pub fn cast_snap<'w, E: EventSink<'w, W>, W: WorldRef<'w>>(
                 &self,
                 action: Action,
                 state: &mut State,
@@ -261,7 +266,7 @@ macro_rules! helper {
             /// Reacts to an event.
             ///
             /// See [`Job::event`] for more information.
-            pub fn event<'w, E: EventSink<'w, W>, W: World>(
+            pub fn event<'w, E: EventSink<'w, W>, W: WorldRef<'w>>(
                 &self,
                 state: &mut State,
                 world: &'w W,
@@ -328,6 +333,14 @@ macro_rules! helper {
                 match self {
                     $(
                         Self::$var_name(v) => JobAction::category(v),
+                    )*
+                }
+            }
+            /// Returns `true` if the action is a GCD.
+            pub fn gcd(&self) -> bool {
+                match self {
+                    $(
+                        Self::$var_name(v) => JobAction::gcd(v),
                     )*
                 }
             }

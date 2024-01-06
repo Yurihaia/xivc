@@ -13,8 +13,8 @@ use crate::{
     util::{combo_pos_pot, combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, Actor, DamageEventExt, Event, EventError, EventSink, Faction,
-        Positional, World,
+        Action, ActionTargetting, ActorRef, DamageEventExt, Event, EventError, EventSink, Faction,
+        Positional, WorldRef,
     },
 };
 
@@ -61,7 +61,7 @@ impl Job for RprJob {
     type CdGroup = RprCdGroup;
     type CdMap<T> = RprCdMap<T>;
 
-    fn check_cast<'w, E: EventSink<'w, W>, W: World>(
+    fn check_cast<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &Self::State,
         _: &'w W,
@@ -140,12 +140,13 @@ impl Job for RprJob {
             gcd,
             lock,
             snap,
+            mp: 0,
             cd,
             alt_cd: None,
         }
     }
 
-    fn cast_snap<'w, E: EventSink<'w, W>, W: World>(
+    fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         action: Self::Action,
         state: &mut Self::State,
         _: &'w W,
@@ -484,7 +485,7 @@ impl Job for RprJob {
         }
     }
 
-    fn event<'w, E: EventSink<'w, W>, W: World>(
+    fn event<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
         _: &mut Self::State,
         world: &'w W,
         event: &Event,
@@ -536,7 +537,7 @@ pub enum RprError {
 }
 impl RprError {
     /// Submits the cast error into the [`EventSink`].
-    pub fn submit<'w, W: World>(self, p: &mut impl EventSink<'w, W>) {
+    pub fn submit<'w, W: WorldRef<'w>>(self, p: &mut impl EventSink<'w, W>) {
         p.error(self.into())
     }
 }
@@ -759,6 +760,10 @@ pub enum RprAction {
 impl JobAction for RprAction {
     fn category(&self) -> ActionCategory {
         self.category()
+    }
+    
+    fn gcd(&self) -> bool {
+        self.gcd().is_some()
     }
 }
 

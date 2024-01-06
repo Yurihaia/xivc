@@ -8,7 +8,7 @@ use crate::{
     status_effect,
     world::{
         status::{StatusEffect, StatusEventExt},
-        Actor, EventSink, World,
+        ActorRef, EventSink, WorldRef,
     },
 };
 
@@ -45,7 +45,7 @@ pub const TRUE_NORTH: StatusEffect = status_effect!("True North" 10000);
 
 impl MeleeRoleAction {
     /// Casts the role action, submitting all events to the supplied event sink.
-    pub fn cast<'w, W: World + 'w>(&self, event_sink: &mut impl EventSink<'w, W>) {
+    pub fn cast<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(&self, event_sink: &mut E) {
         let this_id = event_sink.source().id();
         let dl = self.effect_delay();
         match self {
