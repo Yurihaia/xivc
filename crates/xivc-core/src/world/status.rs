@@ -374,7 +374,7 @@ where
                 acc += f(x);
             }
         }
-        acc.min(100)
+        acc.min(1000)
     }
 
     fn dhit_chance(&self, base: u64) -> u64 {
@@ -392,7 +392,7 @@ where
                 acc += f(x);
             }
         }
-        acc.min(100)
+        acc.min(1000)
     }
 
     fn stats(&self, base: PlayerStats) -> PlayerStats {
