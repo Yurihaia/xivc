@@ -22,7 +22,7 @@ use rand::distributions::Distribution;
 use crate::{
     enums::{ActionCategory, DamageInstance},
     job,
-    math::{EotSnapshot, SpeedStat},
+    math::{EotSnapshot, HitTypeHandle, SpeedStat},
     timing::DurationInfo,
 };
 
@@ -66,16 +66,23 @@ pub trait ActorRef<'w>: Clone + Sized {
     /// Returns the [`WorldRef`] the actor is part of.
     fn world(&self) -> Self::World;
     /// Returns the calculated damage of an attack.
-    fn attack_damage(&self, damage: DamageInstance, target: ActorId) -> u64;
+    fn attack_damage<R>(&self, damage: DamageInstance, target: ActorId, rng: &mut R) -> u64
+    where
+        R: EventRng;
     /// Returns the snapshot for a damage over time effect.
-    fn dot_damage_snapshot(
+    fn dot_damage_snapshot<R>(
         &self,
         damage: DamageInstance,
         stat: SpeedStat,
         target: ActorId,
-    ) -> EotSnapshot;
+        rng: &mut R,
+    ) -> EotSnapshot
+    where
+        R: EventRng;
     /// Returns the calculated damage for an auto attack.
-    fn auto_damage(&self, target: ActorId) -> u64;
+    fn auto_damage<R>(&self, target: ActorId, rng: &mut R) -> u64
+    where
+        R: EventRng;
 
     /// Returns an iterator that contains the
     /// [status effects] present on the actor.
@@ -111,7 +118,7 @@ pub trait ActorRef<'w>: Clone + Sized {
 
     /// Returns `true` if the other actor is within the specified action targetting range.
     fn within_range(&self, other: ActorId, targetting: ActionTargetting) -> bool;
-    
+
     /// Returns the amount of MP a player actor has.
     fn mp(&self) -> u16;
 
@@ -155,6 +162,8 @@ pub struct ActorId(pub u16);
 
 /// A sink for events and errors.
 pub trait EventSink<'w, W: WorldRef<'w>> {
+    /// The source of randomness for this `EventSink`.
+    type Rng: EventRng;
     /// Returns the source actor that the events will come from.
     fn source(&self) -> W::Actor;
     /// Submits an error into the event sink.
@@ -196,9 +205,27 @@ pub trait EventSink<'w, W: WorldRef<'w>> {
             self.event(event, delay);
         }
     }
+    /// Returns the source of randomness for this `EventSink`. See [`EventRng`]'s documentation for more.
+    fn rng(&mut self) -> &mut Self::Rng;
+
+    /// A convenience function that forwards the call to the [`random()`] function on `Self::Rng`.
+    /// See that function's documentation for more.
+    ///
+    /// [`random()`]: EventRng::random
+    fn random<D, T>(&mut self, distr: D) -> T
+    where
+        D: Distribution<T> + 'static,
+        T: 'static,
+    {
+        self.rng().random(distr)
+    }
+}
+
+/// A controllable source of randomness for the simulation.
+pub trait EventRng {
     /// Returns a random value of type `T` from the distribution `D`.
     ///
-    /// This API is made this way to give `EventSink` implementors the ability
+    /// This API is made this way to give `EventRng` implementers the ability
     /// to fabricate results from an RNG.
     ///
     /// Implementors should make sure that, while *statistically* the returned value doesn't
@@ -273,6 +300,77 @@ impl From<DamageEvent> for Event {
     }
 }
 
+/// A random event determining whether an instance of damage
+/// will critically hit.
+pub struct CriticalHit {
+    chance: u16,
+}
+
+impl CriticalHit {
+    /// Creates a new instance of this `struct` with the specified `chance`
+    /// of a critical hit occuring. This `chance` is a probability scaled by `1000`.
+    pub const fn new(chance: u64) -> Self {
+        Self {
+            chance: if chance > 1000 { 1000 } else { chance as u16 },
+        }
+    }
+}
+
+impl Distribution<bool> for CriticalHit {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> bool {
+        rng.gen_ratio(self.chance as u32, 1000)
+    }
+}
+impl Distribution<HitTypeHandle> for CriticalHit {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> HitTypeHandle {
+        HitTypeHandle::new(rng.sample(self))
+    }
+}
+
+/// A random event determining whether an instance of damage
+/// will direct hit.
+pub struct DirectHit {
+    chance: u16,
+}
+
+impl DirectHit {
+    /// Creates a new instance of this `struct` with the specified `chance`
+    /// of a direct hit occuring. This `chance` is a probability scaled by `1000`.
+    pub const fn new(chance: u64) -> Self {
+        Self {
+            chance: if chance > 1000 { 1000 } else { chance as u16 },
+        }
+    }
+}
+
+impl Distribution<bool> for DirectHit {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> bool {
+        rng.gen_ratio(self.chance as u32, 1000)
+    }
+}
+impl Distribution<HitTypeHandle> for DirectHit {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> HitTypeHandle {
+        HitTypeHandle::new(rng.sample(self))
+    }
+}
+
+/// A random event determining the +/-5% damage variance of
+/// an attack.
+pub struct DamageVariance(());
+
+impl DamageVariance {
+    /// Creates a new instance of this `struct`.
+    pub const fn new() -> Self {
+        Self(())
+    }
+}
+
+impl Distribution<u64> for DamageVariance {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> u64 {
+        rng.gen_range(9500..=10500)
+    }
+}
+
 /// A helper trait for easily submitting damage events on to an event sink.
 pub trait DamageEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
     /// Deals damage to the target after the specified delay.
@@ -284,7 +382,7 @@ pub trait DamageEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
         delay: u32,
     ) {
         let actor = self.source();
-        let damage = actor.attack_damage(damage, target);
+        let damage = actor.attack_damage(damage, target, self.rng());
         self.event(
             DamageEvent::new(damage, actor.id(), target, action.into()).into(),
             delay,

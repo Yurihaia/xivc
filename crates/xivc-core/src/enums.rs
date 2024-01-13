@@ -327,9 +327,9 @@ pub struct DamageInstance {
     /// The type of the damage.
     pub dmg_ty: DamageType,
     /// Should the damage force a critical hit.
-    pub force_ch: bool,
+    pub force_crit: bool,
     /// Should the damage force a direct hit.
-    pub force_dh: bool,
+    pub force_dhit: bool,
 }
 
 impl DamageInstance {
@@ -346,8 +346,8 @@ impl DamageInstance {
     ///
     /// assert_eq!(damage.dmg_el, DamageElement::None);
     /// assert_eq!(damage.dmg_ty, DamageType::Unique);
-    /// assert_eq!(damage.force_ch, false);
-    /// assert_eq!(damage.force_dh, false);
+    /// assert_eq!(damage.force_crit, false);
+    /// assert_eq!(damage.force_dhit, false);
     /// ```
     ///
     /// [`Unique`]: DamageType::Unique
@@ -361,8 +361,8 @@ impl DamageInstance {
             potency,
             dmg_ty: DamageType::Unique,
             dmg_el: DamageElement::None,
-            force_ch: false,
-            force_dh: false,
+            force_crit: false,
+            force_dhit: false,
         }
     }
     /// Sets the damage type of this damage instance to physical slashing damage.
@@ -452,10 +452,10 @@ impl DamageInstance {
     /// # use xivc_core::enums::DamageInstance;
     /// let damage = DamageInstance::new(1100).force_crit();
     ///
-    /// assert_eq!(damage.force_ch, true);
+    /// assert_eq!(damage.force_crit, true);
     /// ```
     pub const fn force_crit(mut self) -> Self {
-        self.force_ch = true;
+        self.force_crit = true;
         self
     }
     /// Forces this damage instance to direct hit.
@@ -465,10 +465,10 @@ impl DamageInstance {
     /// # use xivc_core::enums::DamageInstance;
     /// let damage = DamageInstance::new(620).force_dhit();
     ///
-    /// assert_eq!(damage.force_dh, true);
+    /// assert_eq!(damage.force_dhit, true);
     /// ```
     pub const fn force_dhit(mut self) -> Self {
-        self.force_dh = true;
+        self.force_dhit = true;
         self
     }
 }

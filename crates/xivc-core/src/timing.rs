@@ -400,8 +400,9 @@ impl<'a, T: 'a> Iterator for CdMapIterMut<'a, T> {
 ///
 /// ```
 /// # use xivc_core::timing::EventCascade;
-/// # use xivc_core::world::{World,
-/// #     Actor,
+/// # use xivc_core::world::{
+/// #     WorldRef,
+/// #     ActorRef,
 /// #     EventSink,
 /// #     ActorId,
 /// #     Faction,
@@ -411,7 +412,7 @@ impl<'a, T: 'a> Iterator for CdMapIterMut<'a, T> {
 /// };
 /// # use xivc_core::job::brd::BrdAction;
 /// # use xivc_core::enums::DamageInstance;
-/// # fn example<'w, W: World>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
+/// # fn example<'w, W: WorldRef<'w>>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
 /// # let src = world.actor(ActorId(0)).unwrap();
 /// # let targets = std::iter::empty(); // doc moment
 /// // Create a cascade starting at a delay of 600ms.

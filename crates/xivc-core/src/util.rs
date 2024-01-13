@@ -317,19 +317,19 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
 ///
 /// ```
 /// # use xivc_core::world::{
-/// #     World,
+/// #     WorldRef,
 /// #     ActorId,
 /// #     EventSink,
 /// #     ActionTargetting,
 /// #     Faction,
 /// #     DamageEventExt,
-/// #     Actor,
+/// #     ActorRef,
 /// # };
 /// # use xivc_core::job::brd::BrdAction;
 /// # use xivc_core::timing::{EventCascade};
 /// # use xivc_core::need_target;
 /// # use xivc_core::enums::DamageInstance;
-/// # fn example<'w, W: World>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
+/// # fn example<'w, W: WorldRef<'w>>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
 /// # let src = world.actor(ActorId(0)).unwrap();
 /// // Constants like these are recommended to reduce boilerplate.
 /// const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);

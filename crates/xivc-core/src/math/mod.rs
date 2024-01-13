@@ -24,12 +24,16 @@
 //! [`aa_damage`]: XivMath::aa_damage
 //! [`action_cast_length`]: XivMath::action_cast_length
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 pub mod data;
 use data::{JobField, LevelField};
 
 use crate::enums::{Clan, DamageElement, DamageType, Job};
 
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// Player main & substats.
 /// These values are all the same as the ones you would find in-game.
 pub struct PlayerStats {
@@ -87,7 +91,8 @@ impl PlayerStats {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// Information about the player that is not tied to gear
 pub struct PlayerInfo {
     /// The race and clan of the player
@@ -98,7 +103,8 @@ pub struct PlayerInfo {
     pub lvl: u8,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// Information about the weaponn the player has equipped
 pub struct WeaponInfo {
     /// "Physical Damage" or "Magic Damage" field, they are always the same
@@ -127,6 +133,7 @@ pub struct WeaponInfo {
 /// [`dot_damage_snapshot`]: XivMath::dot_damage_snapshot
 /// [`aa_damage`]: XivMath::aa_damage
 /// [`action_cast_length`]: XivMath::action_cast_length
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub struct XivMath {
     /// The stats of the player.
@@ -140,7 +147,8 @@ pub struct XivMath {
 }
 
 /// The stat to use for main stat calculations.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ActionStat {
     /// Used for damage and healing from tanks, melee, and phys ranged
     AttackPower,
@@ -153,7 +161,8 @@ pub enum ActionStat {
 }
 
 /// The stat to use for relevant speed calculations.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum SpeedStat {
     /// Used for the cast and recast times for spells and DoT scalars originating from spells
     SpellSpeed,
@@ -163,7 +172,8 @@ pub enum SpeedStat {
     SkillSpeed,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 /// Handling of critical and direct hits.
 pub enum HitTypeHandle {
     /// Signifies that the critical/direct hit should be averaged out in damage.
@@ -193,6 +203,19 @@ impl HitTypeHandle {
             HitTypeHandle::Force
         } else {
             self
+        }
+    }
+    
+    /// Creates a new `HitTypeHandle`. If `hit` is `true`,
+    /// returns [`Yes`], otherwise, returns [`No`].
+    /// 
+    /// [`Yes`]: HitTypeHandle::Yes
+    /// [`No`]: HitTypeHandle::No
+    pub const fn new(hit: bool) -> Self {
+        if hit {
+            Self::Yes
+        } else {
+            Self::No
         }
     }
 }
