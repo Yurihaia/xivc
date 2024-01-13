@@ -40,7 +40,7 @@ pub const MEIKYO: StatusEffect = status_effect!("Meikyo Shisui" 15000);
 /// The status effect Enhanced Enpi.
 pub const ENENPI: StatusEffect = status_effect!("Enhanced Enpi" 15000);
 /// The DoT effect Higanbana.
-pub const HIGANBANA: StatusEffect = status_effect!("Higanbana" 60000);
+pub const HIGANBANA: StatusEffect = status_effect!("Higanbana" 60000 multi);
 
 impl Job for SamJob {
     type Action = SamAction;
@@ -501,8 +501,9 @@ impl Job for SamJob {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
 /// A custom error for Samurai actions.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug)]
 pub enum SamError {
     /// Not executed following the specified iaijutsu.
     Kaeshi(SamAction),
@@ -735,7 +736,7 @@ impl JobAction for SamAction {
     fn category(&self) -> ActionCategory {
         self.category()
     }
-    
+
     fn gcd(&self) -> bool {
         self.gcd().is_some()
     }

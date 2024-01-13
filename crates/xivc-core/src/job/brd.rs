@@ -16,7 +16,7 @@ use crate::{
     util::GaugeU8,
     world::{
         status::{consume_status, JobEffect, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, ActorRef, ActorId, DamageEventExt, Event, EventError, EventSink,
+        Action, ActionTargetting, ActorId, ActorRef, DamageEventExt, Event, EventError, EventSink,
         Faction, WorldRef,
     },
 };
@@ -82,9 +82,9 @@ pub const MUSE: StatusEffect = status_effect!(
 );
 // dots
 /// The DoT effect "Caustic Bite".
-pub const CAUSTIC_BITE: StatusEffect = status_effect!("Caustic Bite" 45000);
+pub const CAUSTIC_BITE: StatusEffect = status_effect!("Caustic Bite" 45000 multi);
 /// The DoT effect "Stormbite".
-pub const STORMBITE: StatusEffect = status_effect!("Stormbite" 45000);
+pub const STORMBITE: StatusEffect = status_effect!("Stormbite" 45000 multi);
 // TODO: minne and paean
 // this can be done if/when healing is implemented
 
@@ -559,6 +559,7 @@ impl JobEffect for BrdJobEffect {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 /// A custom cast error for Bard actions.
 pub enum BrdError {
@@ -753,7 +754,7 @@ impl JobAction for BrdAction {
     fn category(&self) -> ActionCategory {
         self.category()
     }
-    
+
     fn gcd(&self) -> bool {
         self.gcd().is_some()
     }
@@ -805,9 +806,10 @@ fn repertoire<'w, W: WorldRef<'w>>(
             state.soul += 5;
             match song {
                 // should this be more explicit and manually saturating_sub the value?
-                BrdSong::Ballad => {
-                    event_sink.event(Event::AdvCd(BrdCdGroup::Bloodletter.into(), this_id), 0)
-                }
+                BrdSong::Ballad => event_sink.event(
+                    Event::AdvCd(BrdCdGroup::Bloodletter.into(), 7500, this_id),
+                    0,
+                ),
                 BrdSong::Paeon(rep) => *rep += 1,
                 BrdSong::Minuet(rep) => *rep += 1,
             };

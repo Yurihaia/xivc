@@ -24,14 +24,14 @@ pub struct RprJob;
 
 /// The status effect "Death's Design".
 pub const DEATHS_DESIGN: StatusEffect = status_effect!(
-    "Death's Design" 30000 { damage { in = 110 / 100 } }
+    "Death's Design" 30000 multi { damage { in = 110 / 100 } }
 );
 /// The status effect "Arcane Circle".
 pub const ARCANE_CIRCLE: StatusEffect = status_effect!(
     "Arcane Circle" 20000 { damage { out = 103 / 100 } }
 );
 /// The status effect "Circle of Sacrifice".
-pub const CIRCLE_SACRIFICE: StatusEffect = status_effect!("Circle of Sacrifice" 5000);
+pub const CIRCLE_SACRIFICE: StatusEffect = status_effect!("Circle of Sacrifice" 5000 multi);
 /// The status effect "Bloodsown Sacrifice".
 pub const BLOODSOWN_SACRIFICE: StatusEffect = status_effect!("Bloodsown Sacrifice" 6000);
 /// The status effect "Immortal Sacrifice".
@@ -510,6 +510,7 @@ impl Job for RprJob {
 }
 
 /// A custom cast error for Reaper actions.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug)]
 pub enum RprError {
     /// Not enough Soul gauge.
@@ -761,7 +762,7 @@ impl JobAction for RprAction {
     fn category(&self) -> ActionCategory {
         self.category()
     }
-    
+
     fn gcd(&self) -> bool {
         self.gcd().is_some()
     }

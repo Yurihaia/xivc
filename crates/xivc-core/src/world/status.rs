@@ -31,7 +31,7 @@ use crate::{
     math::{Buffs, EotSnapshot, PlayerStats, SpeedStat},
 };
 
-use super::{ActorRef, ActorId, EventSink, WorldRef};
+use super::{ActorId, ActorRef, EventSink, WorldRef};
 
 #[derive(Debug, Clone, Copy)]
 /// A specific instance of a status effect inflicted upon an actor.
@@ -98,7 +98,6 @@ impl StatusInstance {
     }
 }
 
-#[derive(Copy, Clone)]
 /// A reference to a certain [`StatusVTable`].
 ///
 /// This is the struct you should use when storing a status
@@ -110,6 +109,7 @@ impl StatusInstance {
 /// can easily be accessed through this struct.
 ///
 /// [`Hash`]: hash::Hash
+#[derive(Copy, Clone)]
 pub struct StatusEffect(&'static StatusVTable);
 
 impl StatusEffect {
@@ -177,6 +177,9 @@ pub struct StatusVTable {
     pub stats: Option<StatsModifierFn>,
     /// The default duration of the status effect.
     pub duration: u32,
+    /// If true, the status can only be applied once,
+    /// regardless of the source actor.
+    pub unique: bool,
 }
 
 impl StatusVTable {
@@ -191,6 +194,7 @@ impl StatusVTable {
             duration: 0,
             haste: None,
             stats: None,
+            unique: false,
         }
     }
 }
@@ -528,7 +532,7 @@ pub type SpeedModifierFn = fn(status: StatusInstance) -> u64;
 /// ```
 macro_rules! status_effect {
     (
-        $name:literal $ptk:tt $({
+        $name:literal $ptk:tt $($unique:ident)? $({
             $(
                 $prop:ident { $($t:tt)* }
             )*
@@ -537,6 +541,7 @@ macro_rules! status_effect {
         $crate::world::status::StatusEffect::new(&$crate::world::status::StatusVTable {
             permanent: $crate::__status_effect_inner!(ptk $ptk),
             duration: $crate::__status_effect_inner!(ptd $ptk),
+            unique: $crate::__status_effect_inner!(unq $($unique)?),
             $($(
                 $prop: $crate::__status_effect_inner!(vm $prop { $($t)* }),
             )*)?
@@ -552,6 +557,8 @@ macro_rules! __status_effect_inner {
     (ptk $dur:expr) => { false };
     (ptd permanent) => { 0 };
     (ptd $dur:expr) => { $dur };
+    (unq multi) => { false };
+    (unq ) => { true };
     (vm damage {
         $k:ident = $mul:literal / $div:literal
     }) => {
@@ -660,8 +667,8 @@ pub fn consume_status_stack<'w, W: WorldRef<'w>>(
     present
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// An event of status modification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StatusEvent {
     /// The status effect to be modified.
     pub status: StatusEffect,

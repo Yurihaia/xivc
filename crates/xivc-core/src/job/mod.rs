@@ -151,6 +151,7 @@ pub trait JobState: Clone + Debug + Default {
     fn advance(&mut self, time: u32);
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// A collection of timing information to be applied when an action is cast.
 pub struct CastInitInfo<C: 'static> {
@@ -346,6 +347,7 @@ macro_rules! helper {
             }
         }
         helper!(
+            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
             #[derive(Clone, Debug)]
             /// An error specific to some particular [`Job`].
             enum CastError, $(
@@ -410,7 +412,7 @@ macro_rules! helper {
                 $enum_name, <$job as $crate::job::Job>::CdGroup, $job, $var_name
             )*
         );
-        
+
         #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
         #[derive(Clone, Debug)]
         /// A map of values to the cooldown groups of a particular [`Job`].
@@ -429,6 +431,26 @@ macro_rules! helper {
                     $(Self::$var_name(_) => $crate::enums::Job::$enum_name,)*
                 }
             }
+            /// Returns a reference tothe value associated
+            /// with the cooldown `group`, or [`None`] if the jobs do not match.
+            pub fn get(&self, group: CdGroup) -> Option<&T> {
+                Some(match (self, group) {
+                    $(
+                        (Self::$var_name(v), CdGroup::$var_name(g)) => v.get(g),
+                    )*
+                    _ => return None
+                })
+            }
+            /// Returns a mutable reference tothe value associated
+            /// with the cooldown `group`, or [`None`] if the jobs do not match.
+            pub fn get_mut(&mut self, group: CdGroup) -> Option<&mut T> {
+                Some(match (self, group) {
+                    $(
+                        (Self::$var_name(v), CdGroup::$var_name(g)) => v.get_mut(g),
+                    )*
+                    _ => return None
+                })
+            }
             /// Returns an iterator over the values in this cooldown map.
             pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T> {
                 match self {
@@ -441,6 +463,18 @@ macro_rules! helper {
                     $(Self::$var_name(v) => v.iter_mut(),)*
                 }
             }
+            /// Returns the default state for some specific job.
+            pub fn default_for(job: $crate::enums::Job) -> Self
+            where
+                T: Default,
+            {
+                match job {
+                    $(
+                        $crate::enums::Job::$enum_name => Self::$var_name(Default::default()),
+                    )*
+                    _ => unimplemented!("Job '{}' not yet implemented.", job),
+                }
+            }
         }
         $(
             impl<T> From<<$job as $crate::job::Job>::CdMap<T>> for CdMap<T> {
@@ -451,6 +485,7 @@ macro_rules! helper {
         )*
 
         helper!(
+            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
             #[derive(Clone, Debug)]
             /// An event specific to some particular [`Job`].
             enum JobEvent, nofrom, $(
@@ -492,6 +527,27 @@ macro_rules! helper {
             pub fn job(&self) -> $crate::enums::Job {
                 match self {
                     $(Self::$var_name(_) => $crate::enums::Job::$enum_name,)*
+                }
+            }
+        }
+
+        #[cfg(feature = "serde")]
+        impl $whole_name {
+            /// Deserializes a specific variant based on the provided job.
+            pub fn deserialize_for<'de, D>(
+                job: $crate::enums::Job,
+                deserializer: D
+            ) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                match job {
+                    $(
+                        $crate::enums::Job::$enum_name => Ok(Self::$var_name(
+                            <$job_type as serde::Deserialize>::deserialize(deserializer)?
+                        )),
+                    )*
+                    _ => Err(<D::Error as serde::de::Error>::custom("Job not yet implemented.")),
                 }
             }
         }

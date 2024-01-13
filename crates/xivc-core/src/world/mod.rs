@@ -255,21 +255,22 @@ pub enum Faction {
     Friendly,
 }
 
+/// An event that can be submitted to the event queue.
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
-/// An event that can be submitted to the event queue.
 pub enum Event {
     Damage(DamageEvent),
     Status(StatusEvent),
     Job(job::JobEvent, ActorId),
-    AdvCd(job::CdGroup, ActorId),
+    AdvCd(job::CdGroup, u32, ActorId),
     AddMp(u16, ActorId),
     MpTick(ActorId),
     ActorTick(ActorId),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A damage application event.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DamageEvent {
     /// The damage of the event.
     pub damage: u64,
@@ -306,9 +307,9 @@ pub struct CriticalHit {
 impl CriticalHit {
     /// Creates a new instance of this `struct` with the specified `chance`
     /// of a critical hit occuring. This `chance` is a probability scaled by `1000`.
-    pub const fn new(chance: u64) -> Self {
+    pub const fn new(chance: u16) -> Self {
         Self {
-            chance: if chance > 1000 { 1000 } else { chance as u16 },
+            chance: if chance > 1000 { 1000 } else { chance },
         }
     }
 }
@@ -333,9 +334,9 @@ pub struct DirectHit {
 impl DirectHit {
     /// Creates a new instance of this `struct` with the specified `chance`
     /// of a direct hit occuring. This `chance` is a probability scaled by `1000`.
-    pub const fn new(chance: u64) -> Self {
+    pub const fn new(chance: u16) -> Self {
         Self {
-            chance: if chance > 1000 { 1000 } else { chance as u16 },
+            chance: if chance > 1000 { 1000 } else { chance },
         }
     }
 }
@@ -388,8 +389,9 @@ pub trait DamageEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
 }
 impl<'w, W: WorldRef<'w>, E: EventSink<'w, W>> DamageEventExt<'w, W> for E {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// An action that an actor can cast.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     /// An action used by a job.
     Job(job::Action),
@@ -400,6 +402,12 @@ impl Action {
     pub fn category(&self) -> ActionCategory {
         match self {
             Self::Job(v) => v.category(),
+        }
+    }
+    /// Returns `true` if this action is a GCD.
+    pub fn gcd(&self) -> bool {
+        match self {
+            Self::Job(v) => v.gcd(),
         }
     }
 }

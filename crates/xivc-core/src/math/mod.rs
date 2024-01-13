@@ -205,10 +205,10 @@ impl HitTypeHandle {
             self
         }
     }
-    
+
     /// Creates a new `HitTypeHandle`. If `hit` is `true`,
     /// returns [`Yes`], otherwise, returns [`No`].
-    /// 
+    ///
     /// [`Yes`]: HitTypeHandle::Yes
     /// [`No`]: HitTypeHandle::No
     pub const fn new(hit: bool) -> Self {

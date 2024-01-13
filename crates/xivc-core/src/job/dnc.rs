@@ -15,8 +15,8 @@ use crate::{
     util::{combo_pot, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, ActorRef, ActorId, DamageEventExt, EventError, EventSink, Faction,
-        WorldRef,
+        Action, ActionTargetting, ActorId, ActorRef, DamageEventExt, EventError, EventSink,
+        Faction, WorldRef,
     },
 };
 
@@ -648,6 +648,7 @@ impl Job for DncJob {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 /// A custom cast error for Dancer actions.
 pub enum DncError {
@@ -880,7 +881,7 @@ impl JobAction for DncAction {
     fn category(&self) -> ActionCategory {
         self.category()
     }
-    
+
     fn gcd(&self) -> bool {
         self.gcd().is_some()
     }
