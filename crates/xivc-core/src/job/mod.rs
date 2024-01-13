@@ -345,6 +345,14 @@ macro_rules! helper {
                     )*
                 }
             }
+            /// Returns the name of the action.
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $(
+                        Self::$var_name(v) => v.name(),
+                    )*
+                }
+            }
         }
         helper!(
             #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

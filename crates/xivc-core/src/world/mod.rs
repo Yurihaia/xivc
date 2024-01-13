@@ -410,6 +410,12 @@ impl Action {
             Self::Job(v) => v.gcd(),
         }
     }
+    /// Returns the name of the action.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Job(v) => v.name(),
+        }
+    }
 }
 
 impl From<StatusEvent> for Event {
