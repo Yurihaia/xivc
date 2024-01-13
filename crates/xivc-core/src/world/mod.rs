@@ -70,15 +70,12 @@ pub trait ActorRef<'w>: Clone + Sized {
     where
         R: EventRng;
     /// Returns the snapshot for a damage over time effect.
-    fn dot_damage_snapshot<R>(
+    fn dot_damage_snapshot(
         &self,
         damage: DamageInstance,
         stat: SpeedStat,
         target: ActorId,
-        rng: &mut R,
-    ) -> EotSnapshot
-    where
-        R: EventRng;
+    ) -> EotSnapshot;
     /// Returns the calculated damage for an auto attack.
     fn auto_damage<R>(&self, target: ActorId, rng: &mut R) -> u64
     where

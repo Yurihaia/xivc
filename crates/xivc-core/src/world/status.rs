@@ -871,7 +871,7 @@ pub trait StatusEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
         time: u32,
     ) {
         let actor = self.source();
-        let snapshot = actor.dot_damage_snapshot(damage, stat, target, self.rng());
+        let snapshot = actor.dot_damage_snapshot(damage, stat, target);
         self.event(
             StatusEvent::apply_dot(status, snapshot, stacks, actor.id(), target).into(),
             time,
