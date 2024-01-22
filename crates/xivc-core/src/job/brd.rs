@@ -511,7 +511,7 @@ impl Job for BrdJob {
 
                                         event_sink.event(
                                             JobEvent::brd(
-                                                BrdEvent::song_tick(state.song_gen).into(),
+                                                BrdEvent::song_tick(state.song_gen),
                                                 this_id,
                                             ),
                                             3000,
@@ -540,7 +540,7 @@ impl Job for BrdJob {
         }
     }
 
-    fn effect<'a>(state: &'a Self::State) -> Option<&'a dyn JobEffect> {
+    fn effect(state: &Self::State) -> Option<&dyn JobEffect> {
         Some(BrdJobEffect::new(state))
     }
 }
@@ -801,20 +801,17 @@ fn repertoire<'w, W: WorldRef<'w>>(
     this_id: ActorId,
     event_sink: &mut impl EventSink<'w, W>,
 ) {
-    match &mut state.song {
-        Some((song, _)) => {
-            state.soul += 5;
-            match song {
-                // should this be more explicit and manually saturating_sub the value?
-                BrdSong::Ballad => event_sink.event(
-                    Event::AdvCd(BrdCdGroup::Bloodletter.into(), 7500, this_id),
-                    0,
-                ),
-                BrdSong::Paeon(rep) => *rep += 1,
-                BrdSong::Minuet(rep) => *rep += 1,
-            };
-        }
-        _ => (),
+    if let Some((song, _)) = &mut state.song {
+        state.soul += 5;
+        match song {
+            // should this be more explicit and manually saturating_sub the value?
+            BrdSong::Ballad => event_sink.event(
+                Event::AdvCd(BrdCdGroup::Bloodletter.into(), 7500, this_id),
+                0,
+            ),
+            BrdSong::Paeon(rep) => *rep += 1,
+            BrdSong::Minuet(rep) => *rep += 1,
+        };
     }
 }
 

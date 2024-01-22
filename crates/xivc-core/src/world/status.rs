@@ -264,7 +264,8 @@ macro_rules! job_effect_wrapper {
             /// using the functions defined by this struct's `JobEffect` implementation.
             ///
             /// TODO: More docs.
-            pub const fn new<'a>(value: &'a $stty) -> &'a dyn $crate::world::status::JobEffect {
+            #[allow(clippy::new_ret_no_self)]
+            pub const fn new(value: &$stty) -> &dyn $crate::world::status::JobEffect {
                 // Safety: `ArmysJobEffect` is `repr(transparent)`
                 // and the lifetimes are the same,
                 // so the resulting reference is valid.
@@ -350,13 +351,13 @@ where
         if let Some(x) = &self.job {
             acc = x.damage(base, dmg_ty, dmg_el);
         }
-        for x in self.target.clone() {
-            if let Some(f) = x.effect.damage.incoming {
+        for x in self.source.clone() {
+            if let Some(f) = x.effect.damage.outgoing {
                 acc = f(x, acc, dmg_ty, dmg_el);
             }
         }
-        for x in self.source.clone() {
-            if let Some(f) = x.effect.damage.outgoing {
+        for x in self.target.clone() {
+            if let Some(f) = x.effect.damage.incoming {
                 acc = f(x, acc, dmg_ty, dmg_el);
             }
         }
@@ -868,7 +869,7 @@ pub trait StatusEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
         )
     }
     /// Applies a DoT status effect with a certain number of stacks on to a target actor.
-    fn apply_dot<'a>(
+    fn apply_dot(
         &mut self,
         status: StatusEffect,
         damage: DamageInstance,

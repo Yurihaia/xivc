@@ -490,9 +490,6 @@ pub enum ActionCategory {
 impl ActionCategory {
     /// Returns `true` if the category is a weaponskill or a spell.
     pub const fn skill_or_spell(&self) -> bool {
-        match self {
-            Self::Weaponskill | Self::Spell => true,
-            _ => false,
-        }
+        matches!(self, Self::Weaponskill | Self::Spell)
     }
 }

@@ -158,10 +158,10 @@ impl Job for DncJob {
             _ => (),
         }
 
-        if !action.step_valid() {
-            if this.has_own_status(STANDARD_STEP) || this.has_own_status(TECHNICAL_STEP) {
-                DncError::StepInvalid.submit(event_sink);
-            }
+        if !action.step_valid()
+            && (this.has_own_status(STANDARD_STEP) || this.has_own_status(TECHNICAL_STEP))
+        {
+            DncError::StepInvalid.submit(event_sink);
         }
 
         CastInitInfo {
@@ -283,10 +283,8 @@ impl Job for DncJob {
                     );
                 }
                 if hit {
-                    if combo {
-                        if event_sink.random(SymmFlowProc) {
-                            event_sink.apply_status(SILKEN_SYMM, 1, this_id, 0);
-                        }
+                    if combo && event_sink.random(SymmFlowProc) {
+                        event_sink.apply_status(SILKEN_SYMM, 1, this_id, 0);
                     }
                     esprit(state, 5);
                 }
@@ -368,10 +366,8 @@ impl Job for DncJob {
                     );
                 }
                 state.feathers -= 1;
-                if hit {
-                    if event_sink.random(FanDance3Proc) {
-                        event_sink.apply_status(FAN_DANCE_3, 1, this_id, 0);
-                    }
+                if hit && event_sink.random(FanDance3Proc) {
+                    event_sink.apply_status(FAN_DANCE_3, 1, this_id, 0);
                 }
             }
             ClosedPosition => {
@@ -698,6 +694,7 @@ impl From<DncError> for EventError {
 
 impl Display for DncError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[allow(clippy::match_single_binding)]
         match self {
             _ => {
                 let _ = f;

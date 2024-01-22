@@ -372,7 +372,7 @@ impl Distribution<u64> for DamageVariance {
 /// A helper trait for easily submitting damage events on to an event sink.
 pub trait DamageEventExt<'w, W: WorldRef<'w>>: EventSink<'w, W> {
     /// Deals damage to the target after the specified delay.
-    fn damage<'a>(
+    fn damage(
         &mut self,
         action: impl Into<Action>,
         damage: DamageInstance,

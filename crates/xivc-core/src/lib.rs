@@ -7,6 +7,7 @@
 
 #![cfg_attr(not(test), no_std)]
 #![warn(missing_docs)]
+#![allow(clippy::too_many_arguments)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
