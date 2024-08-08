@@ -239,6 +239,14 @@ pub enum Job {
     #[healer]
     #[name = "Sage"]
     SGE,
+    /// The melee DPS job Viper.
+    #[melee]
+    #[name = "Viper"]
+    VPR,
+    /// The magical ranged DPS job Pictomancer.
+    #[caster]
+    #[name = "Pictomancer"]
+    PCT,
 }
 impl Job {
     /// Returns the stat used to attack for the job.
@@ -330,6 +338,10 @@ pub struct DamageInstance {
     pub force_crit: bool,
     /// Should the damage force a direct hit.
     pub force_dhit: bool,
+    /// The falloff multiplier from an attack, scaled by `100`.
+    /// 
+    /// For example, -75% falloff should be `25`.
+    pub falloff: u8,
 }
 
 impl DamageInstance {
@@ -363,6 +375,7 @@ impl DamageInstance {
             dmg_el: DamageElement::None,
             force_crit: false,
             force_dhit: false,
+            falloff: 100,
         }
     }
     /// Sets the damage type of this damage instance to physical slashing damage.
@@ -469,6 +482,19 @@ impl DamageInstance {
     /// ```
     pub const fn force_dhit(mut self) -> Self {
         self.force_dhit = true;
+        self
+    }
+    /// Sets the falloff for this damage instance.
+    ///
+    /// # Examples
+    /// ```
+    /// # use xivc_core::enums::DamageInstance;
+    /// let damage = DamageInstance::new(850).falloff(25);
+    ///
+    /// assert_eq!(damage.falloff, 25);
+    /// ```
+    pub const fn falloff(mut self, falloff: u8) -> Self {
+        self.falloff = falloff;
         self
     }
 }

@@ -484,6 +484,8 @@ impl XivMath {
         stat: ActionStat,
         crit: HitTypeHandle,
         dhit: HitTypeHandle,
+        // multiplier. divided by 100. 25 is 75% falloff
+        falloff: u64,
         // between 9500 and 10500?????
         // Scaled by 10000
         rand: u64,
@@ -492,6 +494,7 @@ impl XivMath {
         let this = self.with_stats(buffs);
         // The exact order is unknown, and should only lead to ~1-2 damage variation.
         // This order is used by Ari in their tank calc sheet.
+        // I have no clue where damage falloff actually goes.
         #[rustfmt::skip]
         let prerand = potency
             * this.atk_damage(stat) / 100
@@ -499,6 +502,7 @@ impl XivMath {
             * this.ten_damage() / 1000
             * this.wd_mod(stat) / 100
             * this.job_trait_mod() / 100
+            * falloff / 100 // its probably here.
             + (potency < 100) as u64;
         #[rustfmt::skip]
         let prebuff = prerand

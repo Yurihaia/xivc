@@ -46,6 +46,7 @@ pub enum LevelField {
     MAIN,
     SUB,
     DIV,
+    HP,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -66,10 +67,10 @@ pub enum ClanField {
 ///
 /// Currently, only level `90` is supported.
 pub const fn atk_mod(job: Job, level: u8) -> u64 {
-    const NM_MOD: u64 = 195;
-    const TK_MOD: u64 = 156;
-    if level != 90 {
-        return 0;
+    const NM_MOD: u64 = 237;
+    const TK_MOD: u64 = 190;
+    if level != 100 {
+        panic!("only lvl 100 is supported currently.");
     }
     // for the future
     // let out = match level {
@@ -115,15 +116,16 @@ pub const fn level(level: u8, field: LevelField) -> u64 {
     }
     // just forcing level 90 for now, not like anyone actually gives a shit about lower levels
     // fuck you ucob speedrunners i guess
-    let (main, sub, div) = if let Some(v) = embed_data!("./sheets/data_level.csv", level, u8, u64) {
+    let (main, sub, div, hp) = if let Some(v) = embed_data!("./sheets/data_level.csv", level, u8, u64) {
         v
     } else {
-        (0, 0, 0)
+        (0, 0, 0, 0)
     };
     match field {
         LevelField::MAIN => main,
         LevelField::SUB => sub,
         LevelField::DIV => div,
+        LevelField::HP => hp,
     }
 }
 

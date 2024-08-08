@@ -342,6 +342,7 @@ impl<'a, T: 'a> CdMapIter<'a, T> {
     pub fn new<M>(map: &M, get: fn(&M, usize) -> Option<&T>) -> Self {
         Self {
             map: NonNull::from(map).cast(),
+            #[allow(clippy::missing_transmute_annotations)]
             get: unsafe { mem::transmute(get) },
             index: 0,
             marker: PhantomData,
@@ -373,6 +374,7 @@ impl<'a, T: 'a> CdMapIterMut<'a, T> {
     pub fn new<M>(map: &mut M, get: fn(&mut M, usize) -> Option<&mut T>) -> Self {
         Self {
             map: NonNull::from(map).cast(),
+            #[allow(clippy::missing_transmute_annotations)]
             get: unsafe { mem::transmute(get) },
             index: 0,
             marker: PhantomData,
@@ -424,6 +426,7 @@ impl<'a, T: 'a> Iterator for CdMapIterMut<'a, T> {
 /// }
 /// # }
 /// ```
+#[derive(Clone, Debug)]
 pub struct EventCascade {
     amount: u32,
     time: u32,

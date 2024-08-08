@@ -498,7 +498,7 @@ impl Job for RprJob {
                 // if a damage event happens from a party member while
                 // they have circle of sacrifice
                 if event_src.faction() == Faction::Party
-                    && event_src.has_status(CIRCLE_SACRIFICE, this.id())
+                    && event_src.has_status(CIRCLE_SACRIFICE, this_id)
                     && event.action.category().skill_or_spell()
                 {
                     event_sink.apply_or_add_stacks(IMMORTAL_SACRIFICE, 1, 8, this_id, 0);

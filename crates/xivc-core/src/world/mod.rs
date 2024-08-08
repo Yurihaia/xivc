@@ -10,6 +10,8 @@
 //! Also of note is the [`status`] submodule. This module contains
 //! all of the logic for status effect handling.
 
+use core::{error::Error, fmt};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -85,17 +87,19 @@ pub trait ActorRef<'w>: Clone + Sized {
     /// [status effects] present on the actor.
     ///
     /// [status effects]: status::StatusInstance
-    fn statuses(&self) -> impl Iterator<Item = StatusInstance>;
+    fn statuses(&self) -> impl Iterator<Item = StatusInstance> + 'w;
+    /// Returns a status instance applied by some source currently active on this actor.
+    fn get_status(&self, effect: StatusEffect, source: ActorId) -> Option<StatusInstance> {
+        self.statuses()
+            .find(|v| v.effect == effect && v.source == source)
+    }
     /// Returns `true` if the actor has an `effect` applied by a `source` actor.
     fn has_status(&self, effect: StatusEffect, source: ActorId) -> bool {
-        self.statuses()
-            .any(|v| v.effect == effect && v.source == source)
+        self.get_status(effect, source).is_some()
     }
     /// Returns a status instance applied by this actor of the specified effect.
     fn get_own_status(&self, effect: StatusEffect) -> Option<StatusInstance> {
-        let id = self.id();
-        self.statuses()
-            .find(|v| v.effect == effect && v.source == id)
+        self.get_status(effect, self.id())
     }
     /// Returns `true` if this actor has a status instance applied by
     /// this actor of the specified effect.
@@ -111,7 +115,7 @@ pub trait ActorRef<'w>: Clone + Sized {
         &self,
         faction: Option<Faction>,
         targetting: ActionTargetting,
-    ) -> impl Iterator<Item = Self>;
+    ) -> impl Iterator<Item = Self> + 'w;
 
     /// Returns `true` if the other actor is within the specified action targetting range.
     fn within_range(&self, other: ActorId, targetting: ActionTargetting) -> bool;
@@ -147,14 +151,22 @@ pub enum EventError {
     NoTarget,
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+impl Error for EventError {}
+
+impl fmt::Display for EventError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
 /// An ID of an [`ActorRef`].
 ///
 /// While the value inside this struct is public,
 /// it should be treated as an opaque type,
 /// in the sense that a [`WorldRef`] may store data
 /// in it however it wants to.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct ActorId(pub u16);
 
 /// A sink for events and errors.
@@ -163,8 +175,8 @@ pub trait EventSink<'w, W: WorldRef<'w>> {
     type Rng: EventRng;
     /// Returns the source actor that the events will come from.
     fn source(&self) -> W::Actor;
-    /// Submits an error into the event sink.
-    fn error(&mut self, error: EventError);
+    // /// Submits an error into the event sink.
+    // fn error(&mut self, error: EventError);
     /// Submits an event into the event sink to be executed after a specified delay.
     ///
     /// <div class="warning" id="orderwarning">
@@ -259,6 +271,7 @@ pub enum Faction {
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum Event {
+    Action(ActionEvent),
     Damage(DamageEvent),
     Status(StatusEvent),
     Job(job::JobEvent, ActorId),
@@ -266,6 +279,49 @@ pub enum Event {
     AddMp(u16, ActorId),
     MpTick(ActorId),
     ActorTick(ActorId),
+}
+
+/// An action cast event.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActionEvent {
+    /// The action of the event.
+    pub action: Action,
+    /// The actor executing the action.
+    pub source: ActorId,
+    /// The kind of the action event.
+    pub kind: ActionEventKind,
+}
+
+/// The kind of event an action event is.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionEventKind {
+    /// The cast is being prepared.
+    ///
+    /// For actions with cast times, this is when the action is started.
+    Prepare,
+    /// The cast is being executed.
+    ///
+    /// This happens when the action is snapshotted.
+    Cast,
+}
+
+impl ActionEvent {
+    /// Creates a new `ActionEvent`.
+    pub const fn new(action: Action, source: ActorId, kind: ActionEventKind) -> Self {
+        Self {
+            action,
+            source,
+            kind,
+        }
+    }
+}
+
+impl From<ActionEvent> for Event {
+    fn from(value: ActionEvent) -> Self {
+        Event::Action(value)
+    }
 }
 
 /// A damage application event.
@@ -366,6 +422,12 @@ impl DamageVariance {
 impl Distribution<u64> for DamageVariance {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> u64 {
         rng.gen_range(9500..=10500)
+    }
+}
+
+impl Default for DamageVariance {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -470,11 +532,14 @@ impl ActionTargetting {
         Self::Cone { range, angle: deg }
     }
     /// Returns `true` if the action targetting requires a target.
-    pub const fn requires_target(self) -> bool {
-        matches!(
-            self,
-            Self::Single { .. } | Self::Line { .. } | Self::Cone { .. } | Self::TargetCircle { .. }
-        )
+    pub const fn requires_target(self) -> Option<u8> {
+        match self {
+            Self::Single { range }
+            | Self::Line { range }
+            | Self::Cone { range, .. }
+            | Self::TargetCircle { range, .. } => Some(range),
+            _ => None,
+        }
     }
 }
 

@@ -86,7 +86,15 @@ pub fn embed_data(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         RowType::Enum(v) => {
             let rows = csv.rows.iter().map(|(n, vals)| {
                 let name = quote::format_ident!("{}", n);
-                let vals = vals.iter().map(|x| LitInt::new(x, Span::call_site()));
+                let vals = vals.iter().map(|x| {
+                    if let Some(x) = x.strip_prefix("-") {
+                        let v = LitInt::new(x, Span::call_site());
+                        quote! { - #v }
+                    } else {
+                        let v = LitInt::new(x, Span::call_site());
+                        quote! { #v }
+                    }
+                });
                 quote! {
                     #v::#name => Some((#(#vals as #output_type),*))
                 }

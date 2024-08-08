@@ -1,9 +1,20 @@
 //! Various utility types and functions.
 
-use core::{any::TypeId, cmp, mem, ops};
+use core::{
+    any::TypeId,
+    cmp, fmt,
+    iter::{FusedIterator, Map},
+    mem, ops,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    err,
+    timing::EventCascade,
+    world::{status::StatusEffect, ActionTargetting, ActorId, ActorRef, EventError, Faction},
+};
 
 /// A utility function that returns the potency of an action
 /// depending on if it was comboed into and if it hit it's positional.
@@ -228,7 +239,7 @@ impl<const MAX: u8> GaugeU8<MAX> {
     /// # use xivc_core::util::GaugeU8;
     /// // Create a new gauge with a maximum value of 100.
     /// let mut gauge = GaugeU8::<100>::new();
-    /// // Set the gauge to some 30.
+    /// // Set the gauge to 30.
     /// gauge.set(30);
     /// // Increase the gauge by 20.
     /// gauge += 20;
@@ -243,6 +254,36 @@ impl<const MAX: u8> GaugeU8<MAX> {
     /// [`Deref`]: ops::Deref
     pub const fn value(&self) -> u8 {
         self.0
+    }
+    
+    /// Attempts to consume the `amount` specified and returns `true` if there was
+    /// enough gauge.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use xivc_core::util::GaugeU8;
+    /// // Create a new gauge with a maximum value of 100.
+    /// let mut gauge = GaugeU8::<100>::new();
+    /// // Increase the gauge by 25.
+    /// gauge += 25;
+    /// 
+    /// // Consume will not decrease the gauge if there isn't enough.
+    /// assert!(!gauge.consume(50));
+    /// assert_eq!(gauge, 25);
+    /// 
+    /// gauge += 25;
+    /// 
+    /// // But it will once there is enough.
+    /// assert!(gauge.consume(50));
+    /// assert_eq!(gauge, 0);
+    /// ```
+    pub fn consume(&mut self, amount: u8) -> bool {
+        if *self >= amount {
+            *self -= amount;
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -294,93 +335,261 @@ impl<const MAX: u8> ops::Deref for GaugeU8<MAX> {
     }
 }
 
-#[macro_export]
-/// A utility macro to submit an error and then short circuit
-/// from a [`cast_snap`] function if the player does not have a target.
-///
-/// The first parameter is the expression to evaluate the target from.
-/// This is an `Option<T>` by default, or an iterator in the case of `aoe` or `uaoe`.
-///
-/// The second parameter should be a mutable reference to the event sink
-/// that the error should be submitted to.
-///
-/// Finally, an optional keyword of `aoe` or `uaoe` can be specified,
-/// which changes the behavior of the macro.
-/// * None: Used for single target.
-/// * `aoe`: Used for an aoe that needs to separate
-///     the primary target from the secondary targets.
-/// * `uaoe`: Used for an aoe that does not need to separate
-///     the primary target from the secondary targets,
-///     but still requires a target to be cast.
-///
-/// # Examples
-///
-/// ```
-/// # use xivc_core::world::{
-/// #     WorldRef,
-/// #     ActorId,
-/// #     EventSink,
-/// #     ActionTargetting,
-/// #     Faction,
-/// #     DamageEventExt,
-/// #     ActorRef,
-/// # };
-/// # use xivc_core::job::brd::BrdAction;
-/// # use xivc_core::timing::{EventCascade};
-/// # use xivc_core::need_target;
-/// # use xivc_core::enums::DamageInstance;
-/// # fn example<'w, W: WorldRef<'w>>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
-/// # let src = world.actor(ActorId(0)).unwrap();
-/// // Constants like these are recommended to reduce boilerplate.
-/// const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);
-/// const MELEE: ActionTargetting = ActionTargetting::single(3);
-///
-/// // A closure like this is also recommended to reduce boilerplate.
-/// let target_enemy = |t: ActionTargetting| {
-///     src.actors_for_action(Some(Faction::Enemy), t).map(|a| a.id())
-/// };
-///
-/// // Deal damage to targets in a circle with a radius of 5y and a range of 25y.
-/// // This aoe will have damage falloff.
-/// let (first, other) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
-/// let mut cascade = EventCascade::new(600, 1);
-/// event_sink.damage(action, DamageInstance::new(1000).slashing(), first, cascade.next());
-/// for target in other {
-///     event_sink.damage(action, DamageInstance::new(500).slashing(), target, cascade.next());
-/// }
-///
-/// // Deal damage to a single target within a range of 3y.
-/// let target = need_target!(target_enemy(MELEE).next(), event_sink);
-/// event_sink.damage(action, DamageInstance::new(350).slashing(), target, 400);
-/// # }
-/// ```
-///
-/// [`cast_snap`]: crate::job::Job::cast_snap
-macro_rules! need_target {
-    ($t:expr, $p:expr) => {{
-        let Some(v) = $t else {
-            $p.error($crate::world::EventError::NoTarget);
-            return;
-        };
-        v
-    }};
-    ($t:expr, $p:expr, aoe) => {{
-        let mut i = $t;
-        let Some(first) = i.next() else {
-            $p.error($crate::world::EventError::NoTarget);
-            return;
-        };
-        (first, i)
-    }};
-    ($t:expr, $p:expr, uaoe) => {{
-        let mut i = ($t).peekable();
-        if i.peek().is_none() {
-            $p.error($crate::world::EventError::NoTarget);
-            return;
+// #[macro_export]
+// /// A utility macro to submit an error and then short circuit
+// /// from a [`cast_snap`] function if the player does not have a target.
+// ///
+// /// The first parameter is the expression to evaluate the target from.
+// /// This is an `Option<T>` by default, or an iterator in the case of `aoe` or `uaoe`.
+// ///
+// /// The second parameter should be a mutable reference to the event sink
+// /// that the error should be submitted to.
+// ///
+// /// Finally, an optional keyword of `aoe` or `uaoe` can be specified,
+// /// which changes the behavior of the macro.
+// /// * None: Used for single target.
+// /// * `aoe`: Used for an aoe that needs to separate
+// ///     the primary target from the secondary targets.
+// /// * `uaoe`: Used for an aoe that does not need to separate
+// ///     the primary target from the secondary targets,
+// ///     but still requires a target to be cast.
+// ///
+// /// # Examples
+// ///
+// /// ```
+// /// # use xivc_core::world::{
+// /// #     WorldRef,
+// /// #     ActorId,
+// /// #     EventSink,
+// /// #     ActionTargetting,
+// /// #     Faction,
+// /// #     DamageEventExt,
+// /// #     ActorRef,
+// /// # };
+// /// # use xivc_core::job::brd::BrdAction;
+// /// # use xivc_core::timing::{EventCascade};
+// /// # use xivc_core::need_target;
+// /// # use xivc_core::enums::DamageInstance;
+// /// # fn example<'w, W: WorldRef<'w>>(world: &'w W, event_sink: &mut impl EventSink<'w, W>, action: BrdAction) {
+// /// # let src = world.actor(ActorId(0)).unwrap();
+// /// // Constants like these are recommended to reduce boilerplate.
+// /// const TARGET_CIRCLE: ActionTargetting = ActionTargetting::target_circle(5, 25);
+// /// const MELEE: ActionTargetting = ActionTargetting::single(3);
+// ///
+// /// // A closure like this is also recommended to reduce boilerplate.
+// /// let target_enemy = |t: ActionTargetting| {
+// ///     src.actors_for_action(Some(Faction::Enemy), t).map(|a| a.id())
+// /// };
+// ///
+// /// // Deal damage to targets in a circle with a radius of 5y and a range of 25y.
+// /// // This aoe will have damage falloff.
+// /// let (first, other) = need_target!(target_enemy(TARGET_CIRCLE), event_sink, aoe);
+// /// let mut cascade = EventCascade::new(600, 1);
+// /// event_sink.damage(action, DamageInstance::new(1000).slashing(), first, cascade.next());
+// /// for target in other {
+// ///     event_sink.damage(action, DamageInstance::new(500).slashing(), target, cascade.next());
+// /// }
+// ///
+// /// // Deal damage to a single target within a range of 3y.
+// /// let target = need_target!(target_enemy(MELEE).next(), event_sink);
+// /// event_sink.damage(action, DamageInstance::new(350).slashing(), target, 400);
+// /// # }
+// /// ```
+// ///
+// /// [`cast_snap`]: crate::job::Job::cast_snap
+// macro_rules! need_target {
+//     ($t:expr, $p:expr) => {{
+//         let Some(v) = $t else {
+//             $p.error($crate::world::EventError::NoTarget);
+//             return;
+//         };
+//         v
+//     }};
+//     ($t:expr, $p:expr, aoe) => {{
+//         let mut i = $t;
+//         let Some(first) = i.next() else {
+//             $p.error($crate::world::EventError::NoTarget);
+//             return;
+//         };
+//         (first, i)
+//     }};
+//     ($t:expr, $p:expr, uaoe) => {{
+//         let mut i = ($t).peekable();
+//         if i.peek().is_none() {
+//             $p.error($crate::world::EventError::NoTarget);
+//             return;
+//         }
+//         i
+//     }};
+// }
+
+/// Utility methods for [`ActorRef`] to help targetting actors.
+pub trait ActionTargettingExt<'w>: ActorRef<'w> {
+    /// Targets a single enemy.
+    /// 
+    /// If there is no target, or the target is out of range, returns [`EventError::NoTarget`].
+    fn target_enemy(&self, targetting: ActionTargetting) -> Result<Self, EventError> {
+        self.actors_for_action(Some(Faction::Enemy), targetting)
+            .next()
+            .ok_or(EventError::NoTarget)
+    }
+
+    /// Targets multiple enemies and links in a delay cascade.
+    /// 
+    /// If the specified `targetting` doesn't require a target (for example, [`Circle`]), this
+    /// will never be [`Err`].
+    /// Otherwise, if there is no target, or the target is out of range, returns [`EventError::NoTarget`].
+    /// 
+    /// [`Circle`]: ActionTargetting::Circle
+    fn target_enemy_aoe(
+        &self,
+        targetting: ActionTargetting,
+        cascade: EventCascade,
+    ) -> Result<AoeIter<impl Iterator<Item = Self> + 'w>, EventError> {
+        if let Some(range) = targetting.requires_target() {
+            let target = self.target().ok_or(EventError::NoTarget)?;
+            if !self.within_range(target.id(), ActionTargetting::Single { range }) {
+                err!(EventError::NoTarget);
+            }
+            if target.faction() != Faction::Enemy {
+                err!(EventError::NoTarget);
+            }
         }
-        i
-    }};
+        let inner = self.actors_for_action(Some(Faction::Enemy), targetting);
+        Ok(AoeIter { inner, cascade })
+    }
+
+    /// Targets a single party member.
+    /// 
+    /// If there is no target, or the target is out of range, returns [`EventError::NoTarget`].
+    fn target_party(&self, targetting: ActionTargetting) -> Result<Self, EventError> {
+        self.actors_for_action(Some(Faction::Party), targetting)
+            .next()
+            .ok_or(EventError::NoTarget)
+    }
+
+    /// Targets multiple party members and links in a delay cascade.
+    /// 
+    /// If the specified `targetting` doesn't require a target (for example, [`Circle`]), this
+    /// will never be [`Err`].
+    /// Otherwise, if there is no target, or the target is out of range, returns [`EventError::NoTarget`].
+    /// 
+    /// [`Circle`]: ActionTargetting::Circle
+    fn target_party_aoe(
+        &self,
+        targetting: ActionTargetting,
+        cascade: EventCascade,
+    ) -> Result<AoeIter<impl Iterator<Item = Self> + 'w>, EventError> {
+        if let Some(range) = targetting.requires_target() {
+            let target = self.target().ok_or(EventError::NoTarget)?;
+            if !self.within_range(target.id(), ActionTargetting::Single { range }) {
+                return Err(EventError::NoTarget);
+            }
+            if target.faction() != Faction::Party {
+                return Err(EventError::NoTarget);
+            }
+        }
+        let inner = self.actors_for_action(Some(Faction::Party), targetting);
+        Ok(AoeIter { inner, cascade })
+    }
 }
+
+impl<'w, A: ActorRef<'w>> ActionTargettingExt<'w> for A {}
+
+/// An iterator that returns a list of actors along with a delay cascade.
+/// 
+/// See [`target_enemy_aoe`] or [`target_party_aoe`] for more information.
+/// 
+/// [`target_enemy_aoe`]: ActionTargettingExt::target_enemy_aoe
+/// [`target_party_aoe`]: ActionTargettingExt::target_party_aoe
+#[derive(Clone, Debug)]
+pub struct AoeIter<I> {
+    inner: I,
+    cascade: EventCascade,
+}
+
+impl<I> AoeIter<I> {
+    /// Adds damage falloff to the iterator.
+    /// 
+    /// The first value returned will have a falloff of `100`, and every one after that will have a falloff
+    /// matching the specified value.
+    pub fn falloff(self, falloff: u8) -> AoeFalloffIter<I> {
+        AoeFalloffIter {
+            inner: self,
+            first: true,
+            falloff,
+        }
+    }
+}
+
+impl<'w, A: ActorRef<'w>, I: Iterator<Item = A>> AoeIter<I> {
+    /// A convenience method that maps an [`ActorRef`] to its [`ActorId`].
+    pub fn id(self) -> AoeIter<Map<I, impl FnMut(A) -> ActorId>> {
+        AoeIter {
+            inner: self.inner.map(|v| v.id()),
+            cascade: self.cascade,
+        }
+    }
+}
+
+impl<I: Iterator> Iterator for AoeIter<I> {
+    type Item = (I::Item, u32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.inner.next()?, self.cascade.next()))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<I: ExactSizeIterator> ExactSizeIterator for AoeIter<I> {}
+impl<I: FusedIterator> FusedIterator for AoeIter<I> {}
+
+/// An iterator that returns a list of actors along with a delay cascade.
+/// 
+/// See [`falloff`] for more information.
+/// 
+/// [`falloff`]: AoeIter::falloff
+#[derive(Clone, Debug)]
+pub struct AoeFalloffIter<I> {
+    inner: AoeIter<I>,
+    first: bool,
+    falloff: u8,
+}
+
+impl<'w, A: ActorRef<'w>, I: Iterator<Item = A>> AoeFalloffIter<I> {
+    /// A convenience method that maps an [`ActorRef`] to its [`ActorId`].
+    pub fn id(self) -> AoeFalloffIter<Map<I, impl FnMut(A) -> ActorId>> {
+        AoeFalloffIter {
+            inner: self.inner.id(),
+            first: self.first,
+            falloff: self.falloff,
+        }
+    }
+}
+
+impl<I: Iterator> Iterator for AoeFalloffIter<I> {
+    type Item = (I::Item, u32, u8);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (item, delay) = self.inner.next()?;
+        let falloff = if mem::replace(&mut self.first, false) {
+            100
+        } else {
+            self.falloff
+        };
+        Some((item, delay, falloff))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<I: ExactSizeIterator> ExactSizeIterator for AoeFalloffIter<I> {}
+impl<I: FusedIterator> FusedIterator for AoeFalloffIter<I> {}
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -657,4 +866,19 @@ where
     } else {
         None
     }
+}
+
+/// A generic error message for lacking a certain status effect.
+///
+/// It is output as `Not under the effect of <status name>`.
+pub fn status_proc_error(f: &mut impl fmt::Write, status: StatusEffect) -> fmt::Result {
+    write!(f, "Not under the effect of '{}'.", status.name)
+}
+
+/// Exits the function early with an error.
+#[macro_export]
+macro_rules! err {
+    ($e:expr) => {
+        { return Err($e.into()); }
+    };
 }

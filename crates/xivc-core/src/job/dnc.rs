@@ -9,14 +9,15 @@ use serde::{Deserialize, Serialize};
 use crate::{
     bool_job_dist,
     enums::{ActionCategory, DamageInstance},
+    err,
     job::{CastInitInfo, Job, JobAction, JobState},
-    job_cd_struct, need_target, status_effect,
+    job_cd_struct, status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
-    util::{combo_pot, ComboState, GaugeU8},
+    util::{combo_pot, ActionTargettingExt as _, ComboState, GaugeU8},
     world::{
         status::{consume_status, StatusEffect, StatusEventExt},
-        Action, ActionTargetting, ActorId, ActorRef, DamageEventExt, EventError, EventSink,
-        Faction, WorldRef,
+        Action, ActionTargetting, ActorId, ActorRef, DamageEventExt, Event, EventError, EventSink,
+        WorldRef,
     },
 };
 
@@ -31,13 +32,15 @@ pub const SILKEN_SYMM: StatusEffect = status_effect!("Silken Symmetry" 30000);
 pub const SILKEN_FLOW: StatusEffect = status_effect!("Silken Flow" 30000);
 /// The status effect "Standard Step".
 pub const STANDARD_STEP: StatusEffect = status_effect!("Standard Step" 15000);
-/// The status effect "Standard Finish" with 1 completed step.
-pub const STANDARD_FINISH_1: StatusEffect = status_effect!(
-    "Standard Finish" 60000 { damage { out = 102 / 100 } }
-);
-/// The status effect "Standard Finish" with 2 completed steps.
-pub const STANDARD_FINISH_2: StatusEffect = status_effect!(
-    "Standard Finish" 60000 { damage { out = 105 / 100 } }
+/// The status effect "Standard Finish".
+pub const STANDARD_FINISH: StatusEffect = status_effect!(
+    "Standard Finish" 60000 { damage { out = |s, d, _, _| {
+        d * match s.stack {
+            1 => 102,
+            2 => 105,
+            _ => 0,
+        } / 100
+    } } }
 );
 /// The status effect "Esprit" from Standard Finish.
 pub const STANDARD_ESPIT: StatusEffect = status_effect!("Esprit" 60000);
@@ -55,21 +58,17 @@ pub const STARFALL: StatusEffect = status_effect!("Flourishing Starfall" 20000);
 pub const FAN_DANCE_3: StatusEffect = status_effect!("Threefold Fan Dance" 30000);
 /// The status effect "Technical Step".
 pub const TECHNICAL_STEP: StatusEffect = status_effect!("Technical Step" 15000);
-/// The status effect "Technical Finish" with 1 completed step.
-pub const TECHNICAL_FINISH_1: StatusEffect = status_effect!(
-    "Technical Finish" 20000 { damage { out = 101 / 100 } }
-);
-/// The status effect "Technical Finish" with 2 completed steps.
-pub const TECHNICAL_FINISH_2: StatusEffect = status_effect!(
-    "Technical Finish" 20000 { damage { out = 102 / 100 } }
-);
-/// The status effect "Technical Finish" with 3 completed steps.
-pub const TECHNICAL_FINISH_3: StatusEffect = status_effect!(
-    "Technical Finish" 20000 { damage { out = 103 / 100 } }
-);
-/// The status effect "Technical Finish" with 4 completed steps.
-pub const TECHNICAL_FINISH_4: StatusEffect = status_effect!(
-    "Technical Finish" 20000 { damage { out = 105 / 100 } }
+/// The status effect "Technical Finish".
+pub const TECHNICAL_FINISH: StatusEffect = status_effect!(
+    "Technical Finish" 20000 { damage { out = |s, d, _, _| {
+        d * match s.stack {
+            1 => 101,
+            2 => 102,
+            3 => 103,
+            4 => 105,
+            _ => 0,
+        } / 100
+    } } }
 );
 /// The status effect "Esprit" from Technical Finish.
 pub const TECHNICAL_ESPIT: StatusEffect = status_effect!("Esprit" 20000);
@@ -81,6 +80,12 @@ pub const FLOURISH_SYMM: StatusEffect = status_effect!("Flourishing Symmetry" 30
 pub const FLOURISH_FLOW: StatusEffect = status_effect!("Flourishing Flow" 30000);
 /// The status effect "Fourfold Fan Dance".
 pub const FAN_DANCE_4: StatusEffect = status_effect!("Fourfold Fan Dance" 30000);
+/// The status effect "Last Dance Ready".
+pub const LAST_DANCE_READY: StatusEffect = status_effect!("Last Dance Ready" 30000);
+/// The status effect "Finishing Move Ready".
+pub const FINISHING_MOVE_READY: StatusEffect = status_effect!("Finishing Move Ready" 30000);
+/// The status effect "Dance of the Dawn Ready".
+pub const DANCE_OF_THE_DAWN_READY: StatusEffect = status_effect!("Dance of the Dawn Ready" 30000);
 
 impl Job for DncJob {
     type Action = DncAction;
@@ -95,7 +100,7 @@ impl Job for DncJob {
         state: &Self::State,
         _: &'w W,
         event_sink: &mut E,
-    ) -> CastInitInfo<Self::CdGroup> {
+    ) -> Result<CastInitInfo<Self::CdGroup>, EventError> {
         let this = event_sink.source();
 
         let di = this.duration_info();
@@ -108,70 +113,76 @@ impl Job for DncJob {
             .map(|v| (v, action.cooldown(), action.cd_charges()));
 
         use DncAction::*;
-        match action {
-            FanDance | FanDance2 if *state.feathers == 0 => {
-                DncError::Feather.submit(event_sink);
-            }
-            SaberDance if *state.esprit < 50 => event_sink.error(DncError::Esprit.into()),
-            FanDance3 if !this.has_own_status(FAN_DANCE_3) => {
-                DncError::Fan3.submit(event_sink);
-            }
-            FanDance4 if !this.has_own_status(FAN_DANCE_4) => {
-                DncError::Fan4.submit(event_sink);
-            }
-            StarfallDance if !this.has_own_status(STARFALL) => {
-                DncError::Starfall.submit(event_sink);
-            }
-            ReverseCascade | RisingWindmill => {
-                if !this.has_own_status(SILKEN_SYMM) && !this.has_own_status(FLOURISH_SYMM) {
-                    DncError::Symmetry.submit(event_sink);
-                }
-            }
-            Fountainfall | Bloodshower => {
-                if !this.has_own_status(SILKEN_FLOW) && !this.has_own_status(FLOURISH_FLOW) {
-                    DncError::Flow.submit(event_sink);
-                }
-            }
-            Tillana if !this.has_own_status(FLOURISH_FINISH) => {
-                DncError::Tillana.submit(event_sink);
-            }
-            StandardFinish if !this.has_own_status(STANDARD_STEP) => {
-                DncError::StandardStep.submit(event_sink);
-            }
-            TechnicalFinish if !this.has_own_status(TECHNICAL_STEP) => {
-                DncError::TechnicalStep.submit(event_sink);
-            }
-            Jete | Pirouette | Emboite | Entrechat => {
-                if !this.has_own_status(STANDARD_STEP) && !this.has_own_status(TECHNICAL_STEP) {
-                    DncError::Step.submit(event_sink);
-                }
-            }
-            Flourish if !this.in_combat() => {
-                event_sink.error(EventError::InCombat);
-            }
-            ClosedPosition if state.partner.is_some() => {
-                DncError::PartnerActive.submit(event_sink);
-            }
-            Ending if state.partner.is_none() => {
-                DncError::PartnerInactive.submit(event_sink);
-            }
-            _ => (),
-        }
 
         if !action.step_valid()
             && (this.has_own_status(STANDARD_STEP) || this.has_own_status(TECHNICAL_STEP))
         {
-            DncError::StepInvalid.submit(event_sink);
+            return Err(DncError::StepInvalid.into());
         }
 
-        CastInitInfo {
+        match action {
+            FanDance | FanDance2 if *state.feathers == 0 => {
+                err!(DncError::Feather);
+            }
+            SaberDance | DanceOfTheDawn if *state.esprit < 50 => {
+                err!(DncError::Esprit);
+            }
+            FanDance3 if !this.has_own_status(FAN_DANCE_3) => {
+                err!(DncError::Fan3);
+            }
+            FanDance4 if !this.has_own_status(FAN_DANCE_4) => {
+                err!(DncError::Fan4);
+            }
+            StarfallDance if !this.has_own_status(STARFALL) => {
+                err!(DncError::Starfall);
+            }
+            ReverseCascade | RisingWindmill => {
+                if !this.has_own_status(SILKEN_SYMM) && !this.has_own_status(FLOURISH_SYMM) {
+                    err!(DncError::Symmetry);
+                }
+            }
+            Fountainfall | Bloodshower => {
+                if !this.has_own_status(SILKEN_FLOW) && !this.has_own_status(FLOURISH_FLOW) {
+                    err!(DncError::Flow);
+                }
+            }
+            Tillana if !this.has_own_status(FLOURISH_FINISH) => {
+                err!(DncError::Tillana);
+            }
+            StandardFinish if !this.has_own_status(STANDARD_STEP) => {
+                err!(DncError::StandardStep);
+            }
+            TechnicalFinish if !this.has_own_status(TECHNICAL_STEP) => {
+                err!(DncError::TechnicalStep);
+            }
+            Jete | Pirouette | Emboite | Entrechat => {
+                if !this.has_own_status(STANDARD_STEP) && !this.has_own_status(TECHNICAL_STEP) {
+                    err!(DncError::Step);
+                }
+            }
+            Flourish if !this.in_combat() => {
+                err!(EventError::InCombat);
+            }
+            ClosedPosition if state.partner.is_some() => {
+                err!(DncError::PartnerActive);
+            }
+            Ending if state.partner.is_none() => {
+                err!(DncError::PartnerInactive);
+            }
+            LastDance if !this.has_own_status(LAST_DANCE_READY) => {
+                err!(DncError::DanceOfTheDawn);
+            }
+            _ => (),
+        }
+
+        Ok(CastInitInfo {
             gcd,
             lock,
             snap,
             mp: 0,
             cd,
             alt_cd: None,
-        }
+        })
     }
 
     fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
@@ -179,16 +190,11 @@ impl Job for DncJob {
         state: &mut Self::State,
         _: &'w W,
         event_sink: &mut E,
-    ) {
+    ) -> Result<(), EventError> {
         let this = event_sink.source();
         let this_id = this.id();
 
         use DncAction::*;
-
-        let target_enemy = |t: ActionTargetting| {
-            this.actors_for_action(Some(Faction::Enemy), t)
-                .map(|a| a.id())
-        };
 
         let esprit = |state: &mut DncState, val: u8| {
             if this.has_own_status(STANDARD_ESPIT) || this.has_own_status(TECHNICAL_ESPIT) {
@@ -200,7 +206,7 @@ impl Job for DncJob {
 
         match action {
             Cascade => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                let t = this.target_enemy(RANGED)?.id();
                 if event_sink.random(SymmFlowProc) {
                     event_sink.apply_status(SILKEN_SYMM, 1, this_id, 0);
                 }
@@ -209,15 +215,11 @@ impl Job for DncJob {
                 event_sink.damage(action, DamageInstance::new(220).slashing(), t, dl);
             }
             Fountain => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                let combo = if state.combos.check_main_for(action) {
-                    if event_sink.random(SymmFlowProc) {
-                        event_sink.apply_status(SILKEN_FLOW, 1, this_id, 0);
-                    }
-                    true
-                } else {
-                    false
-                };
+                let t = this.target_enemy(RANGED)?.id();
+                let combo = state.combos.check_main_for(action);
+                if combo && event_sink.random(SymmFlowProc) {
+                    event_sink.apply_status(SILKEN_FLOW, 1, this_id, 0);
+                }
                 // apparently you get esprit from uncomboed gcds
                 esprit(state, 5);
                 state.combos.main.reset();
@@ -229,16 +231,13 @@ impl Job for DncJob {
                 );
             }
             Windmill => {
-                let mut cascade = EventCascade::new(dl, 1);
+                let iter = this
+                    .target_enemy_aoe(CIRCLE, EventCascade::new(dl, 1))?
+                    .id();
                 let mut hit = false;
-                for t in target_enemy(CIRCLE) {
+                for (t, d) in iter {
                     hit = true;
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(100).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                    event_sink.damage(action, DamageInstance::new(100).slashing(), t, d);
                 }
                 if hit {
                     if event_sink.random(SymmFlowProc) {
@@ -252,34 +251,37 @@ impl Job for DncJob {
             }
             StandardStep => {
                 event_sink.apply_status(STANDARD_STEP, 1, this_id, 0);
-                // TODO: make random step sequences work.
                 state.step = StepGauge::Std {
                     steps: event_sink.random(StdStepSeqence),
                     completed: 0,
                 }
             }
             ReverseCascade => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if !consume_status(event_sink, SILKEN_SYMM, 0) {
-                    event_sink.remove_status(FLOURISH_SYMM, this_id, 0);
+                let t = this.target_enemy(RANGED)?.id();
+                if !consume_status(event_sink, SILKEN_SYMM, 0)
+                    && !consume_status(event_sink, FLOURISH_SYMM, 0)
+                {
+                    err!(DncError::Symmetry);
                 }
+                event_sink.damage(action, DamageInstance::new(280).slashing(), t, dl);
                 if event_sink.random(FeatherProc) {
                     state.feathers += 1;
                 }
                 esprit(state, 10);
-                event_sink.damage(action, DamageInstance::new(280).slashing(), t, dl);
             }
             Bladeshower => {
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut hit = false;
+                let iter = this
+                    .target_enemy_aoe(CIRCLE, EventCascade::new(dl, 1))?
+                    .id();
                 let combo = state.combos.check_main_for(action);
-                for t in target_enemy(CIRCLE) {
+                let mut hit = false;
+                for (t, d) in iter {
                     hit = true;
                     event_sink.damage(
                         action,
                         DamageInstance::new(combo_pot(100, 140, combo)).slashing(),
                         t,
-                        cascade.next(),
+                        d,
                     );
                 }
                 if hit {
@@ -291,27 +293,28 @@ impl Job for DncJob {
                 state.combos.main.reset();
             }
             FanDance => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                state.feathers -= 1;
+                let t = this.target_enemy(RANGED)?.id();
+                if !state.feathers.consume(1) {
+                    err!(DncError::Feather);
+                }
                 if event_sink.random(FanDance3Proc) {
                     event_sink.apply_status(FAN_DANCE_3, 1, this_id, 0);
                 }
                 event_sink.damage(action, DamageInstance::new(150).slashing(), t, dl);
             }
             RisingWindmill => {
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut hit = false;
-                for t in target_enemy(CIRCLE) {
-                    hit = true;
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(140).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(CIRCLE, EventCascade::new(dl, 1))?
+                    .id();
+                if !consume_status(event_sink, SILKEN_SYMM, 0)
+                    && !consume_status(event_sink, FLOURISH_SYMM, 0)
+                {
+                    err!(DncError::Symmetry);
                 }
-                if !consume_status(event_sink, SILKEN_SYMM, 0) {
-                    event_sink.remove_status(FLOURISH_SYMM, this_id, 0);
+                let mut hit = false;
+                for (t, d) in iter {
+                    hit = true;
+                    event_sink.damage(action, DamageInstance::new(140).slashing(), t, d);
                 }
                 if hit {
                     if event_sink.random(FeatherProc) {
@@ -321,30 +324,31 @@ impl Job for DncJob {
                 }
             }
             Fountainfall => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if !consume_status(event_sink, SILKEN_FLOW, 0) {
-                    event_sink.remove_status(FLOURISH_FLOW, this_id, 0);
+                let t = this.target_enemy(RANGED)?.id();
+                if !consume_status(event_sink, SILKEN_FLOW, 0)
+                    && !consume_status(event_sink, FLOURISH_FLOW, 0)
+                {
+                    err!(DncError::Flow);
                 }
+                event_sink.damage(action, DamageInstance::new(340).slashing(), t, dl);
                 if event_sink.random(FeatherProc) {
                     state.feathers += 1;
                 }
                 esprit(state, 10);
-                event_sink.damage(action, DamageInstance::new(340).slashing(), t, dl);
             }
             Bloodshower => {
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut hit = false;
-                for t in target_enemy(CIRCLE) {
-                    hit = true;
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(180).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(CIRCLE, EventCascade::new(dl, 1))?
+                    .id();
+                if !consume_status(event_sink, SILKEN_FLOW, 0)
+                    && !consume_status(event_sink, FLOURISH_FLOW, 0)
+                {
+                    err!(DncError::Flow);
                 }
-                if !consume_status(event_sink, SILKEN_FLOW, 0) {
-                    event_sink.remove_status(FLOURISH_FLOW, this_id, 0);
+                let mut hit = false;
+                for (t, d) in iter {
+                    hit = true;
+                    event_sink.damage(action, DamageInstance::new(180).slashing(), t, d);
                 }
                 if hit {
                     if event_sink.random(FeatherProc) {
@@ -354,32 +358,25 @@ impl Job for DncJob {
                 }
             }
             FanDance2 => {
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut hit = false;
-                for t in target_enemy(CIRCLE) {
-                    hit = true;
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(100).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(CIRCLE, EventCascade::new(dl, 1))?
+                    .id();
+                if !state.feathers.consume(1) {
+                    err!(DncError::Feather);
                 }
-                state.feathers -= 1;
+                let mut hit = false;
+                for (t, d) in iter {
+                    hit = true;
+                    event_sink.damage(action, DamageInstance::new(100).slashing(), t, d);
+                }
                 if hit && event_sink.random(FanDance3Proc) {
                     event_sink.apply_status(FAN_DANCE_3, 1, this_id, 0);
                 }
             }
             ClosedPosition => {
-                let t = need_target!(
-                    this.actors_for_action(Some(Faction::Party), ActionTargetting::single(30))
-                        .map(|a| a.id())
-                        .next(),
-                    event_sink
-                );
+                let t = this.target_party(ActionTargetting::single(30))?.id();
                 if t == this_id {
-                    event_sink.error(EventError::NoTarget);
-                    return;
+                    err!(EventError::NoTarget);
                 }
 
                 // remove partner. this is to maintain a consistent state
@@ -407,26 +404,19 @@ impl Job for DncJob {
                 }
             }
             FanDance3 => {
-                let (first, other) = need_target!(target_enemy(TG_CIRCLE), event_sink, aoe);
-                let mut cascade = EventCascade::new(dl, 1);
-                event_sink.damage(
-                    action,
-                    DamageInstance::new(200).slashing(),
-                    first,
-                    cascade.next(),
-                );
-                for t in other {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(100).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(TG_CIRCLE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                if !consume_status(event_sink, FAN_DANCE_3, 0) {
+                    err!(DncError::Fan3);
+                }
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(100).slashing().falloff(f), t, d);
                 }
             }
             TechnicalStep => {
                 event_sink.apply_status(TECHNICAL_STEP, 1, this_id, 0);
-                // TODO: make random step sequences work.
                 state.step = StepGauge::Tech {
                     steps: event_sink.random(TechStepSeqence),
                     completed: 0,
@@ -437,72 +427,50 @@ impl Job for DncJob {
                 event_sink.apply_status(FLOURISH_FLOW, 1, this_id, 0);
                 event_sink.apply_status(FAN_DANCE_3, 1, this_id, 0);
                 event_sink.apply_status(FAN_DANCE_4, 1, this_id, 0);
+                event_sink.apply_status(FINISHING_MOVE_READY, 1, this_id, 0);
             }
             SaberDance => {
-                let (first, other) = need_target!(target_enemy(TG_CIRCLE), event_sink, aoe);
-                state.esprit -= 50;
-                let mut cascade = EventCascade::new(dl, 1);
-                event_sink.damage(
-                    action,
-                    DamageInstance::new(480).slashing(),
-                    first,
-                    cascade.next(),
-                );
-                for t in other {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(240).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(TG_CIRCLE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                if !state.esprit.consume(50) {
+                    err!(DncError::Esprit);
+                }
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(520).slashing().falloff(f), t, d);
                 }
             }
             FanDance4 => {
-                let (first, other) = need_target!(
-                    target_enemy(ActionTargetting::cone(15, 90)),
-                    event_sink,
-                    aoe
-                );
-                event_sink.remove_status(FAN_DANCE_4, this_id, 0);
-                let mut cascade = EventCascade::new(dl, 1);
-                event_sink.damage(
-                    action,
-                    DamageInstance::new(300).slashing(),
-                    first,
-                    cascade.next(),
-                );
-                for t in other {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(150).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(ActionTargetting::cone(15, 90), EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                if !consume_status(event_sink, FAN_DANCE_4, 0) {
+                    err!(DncError::Fan4);
+                }
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(300).slashing().falloff(f), t, d);
                 }
             }
             StarfallDance => {
-                let (first, other) =
-                    need_target!(target_enemy(ActionTargetting::line(25)), event_sink, aoe);
-                event_sink.remove_status(STARFALL, this_id, 0);
-                let mut cascade = EventCascade::new(dl, 1);
-                event_sink.damage(
-                    action,
-                    DamageInstance::new(600)
-                        .slashing()
-                        .force_crit()
-                        .force_dhit(),
-                    first,
-                    cascade.next(),
-                );
-                for t in other {
+                let iter = this
+                    .target_enemy_aoe(ActionTargetting::line(25), EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(25);
+                if !consume_status(event_sink, STARFALL, 0) {
+                    err!(DncError::Starfall);
+                }
+                for (t, d, f) in iter {
                     event_sink.damage(
                         action,
-                        DamageInstance::new(150)
+                        DamageInstance::new(600)
                             .slashing()
                             .force_crit()
-                            .force_dhit(),
+                            .force_dhit()
+                            .falloff(f),
                         t,
-                        cascade.next(),
+                        d,
                     );
                 }
             }
@@ -513,40 +481,38 @@ impl Job for DncJob {
             StandardFinish => {
                 let completed = match state.step {
                     StepGauge::Std { completed, .. } => completed,
+                    _ => err!(DncError::StandardStep),
+                };
+                event_sink.remove_status(STANDARD_STEP, this_id, 0);
+                let potency = match completed {
+                    0 => 360,
+                    1 => 540,
+                    2 => 850,
                     _ => 0,
                 };
-                let (potency, status) = match completed {
-                    1 => (540, Some(STANDARD_FINISH_1)),
-                    2 => (720, Some(STANDARD_FINISH_2)),
-                    _ => (360, None),
-                };
+
+                event_sink.apply_status(LAST_DANCE_READY, 1, this_id, 0);
                 // this might?? potentially work the same way as
                 // technical step, but i'm not sure and in reality
                 // it should not be encountered.
-                if let Some(status) = status {
-                    event_sink.apply_status(status, 1, this_id, 0);
+                if completed > 0 {
+                    event_sink.apply_status(STANDARD_STEP, completed, this_id, 0);
                     event_sink.apply_status(STANDARD_ESPIT, 1, this_id, 0);
                     if let Some(partner) = state.partner {
-                        event_sink.apply_status(status, 1, partner, 0);
+                        event_sink.apply_status(STANDARD_STEP, completed, partner, 0);
                         event_sink.apply_status(STANDARD_ESPIT, 1, partner, 0);
                     }
                 }
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut iter = target_enemy(DANCE);
-                if let Some(t) = iter.next() {
+                let iter = this
+                    .target_enemy_aoe(DANCE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(25);
+                for (t, d, f) in iter {
                     event_sink.damage(
                         action,
-                        DamageInstance::new(potency).slashing(),
+                        DamageInstance::new(potency).slashing().falloff(f),
                         t,
-                        cascade.next(),
-                    );
-                }
-                for t in iter {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(potency / 4).slashing(),
-                        t,
-                        cascade.next(),
+                        d,
                     );
                 }
             }
@@ -554,45 +520,47 @@ impl Job for DncJob {
             TechnicalFinish => {
                 let completed = match state.step {
                     StepGauge::Tech { completed, .. } => completed,
-                    _ => 0,
+                    _ => err!(DncError::TechnicalStep),
                 };
-                let (potency, status) = match completed {
-                    1 => (540, Some(TECHNICAL_FINISH_1)),
-                    2 => (720, Some(TECHNICAL_FINISH_2)),
-                    3 => (900, Some(TECHNICAL_FINISH_3)),
-                    4 => (1200, Some(TECHNICAL_FINISH_4)),
-                    _ => (360, None), // game says 350 but i think thats a typo
+                event_sink.remove_status(TECHNICAL_STEP, this_id, 0);
+                let potency = match completed {
+                    1 => 540,
+                    2 => 720,
+                    3 => 900,
+                    4 => 1300,
+                    _ => 360, // game says 350 but i think thats a typo
                 };
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut first = true;
-                for t in target_enemy(DANCE) {
-                    let potency = if first {
-                        first = false;
-                        potency
-                    } else {
-                        potency / 4
-                    };
+                let iter = this
+                    .target_enemy_aoe(DANCE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(25);
+                for (t, d, f) in iter {
                     event_sink.damage(
                         action,
-                        DamageInstance::new(potency).slashing(),
+                        DamageInstance::new(potency).slashing().falloff(f),
                         t,
-                        cascade.next(),
+                        d,
                     );
                 }
 
-                if let Some(status) = status {
-                    let iter = this.actors_for_action(None, ActionTargetting::circle(30));
+                event_sink.apply_status(FLOURISH_FINISH, 1, this_id, 0);
+                event_sink.apply_status(DANCE_OF_THE_DAWN_READY, 1, this_id, 0);
+
+                if completed > 0 {
                     // TODO: Verify technical step buff delay
                     let delay = 650;
-                    let mut cascade = EventCascade::new(delay, 3);
-                    for t in iter {
+                    let iter = this.target_party_aoe(
+                        ActionTargetting::circle(30),
+                        EventCascade::new(delay, 3),
+                    )?;
+                    for (t, d) in iter {
                         let t_id = t.id();
                         event_sink.apply_status_cascade_remove(
-                            status,
-                            1,
+                            TECHNICAL_FINISH,
+                            completed,
                             t_id,
                             delay,
-                            cascade.next(),
+                            d,
                         );
                         if !t.has_status(STANDARD_ESPIT, this_id) {
                             event_sink.apply_status_cascade_remove(
@@ -600,7 +568,7 @@ impl Job for DncJob {
                                 1,
                                 t_id,
                                 delay,
-                                cascade.next(),
+                                d,
                             );
                         }
                     }
@@ -608,38 +576,87 @@ impl Job for DncJob {
                 event_sink.apply_status(FLOURISH_FINISH, 1, this_id, 0);
             }
             Tillana => {
-                // this might?? potentially work the same way as
-                // technical step, but i'm not sure and in reality
-                // it should not be encountered.
-                event_sink.remove_status(FLOURISH_FINISH, this_id, 0);
-                event_sink.apply_status(STANDARD_FINISH_2, 1, this_id, 0);
+                let iter = this
+                    .target_enemy_aoe(DANCE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                let mut hit = false;
+                for (t, d, f) in iter {
+                    hit = true;
+                    event_sink.damage(action, DamageInstance::new(600).slashing().falloff(f), t, d);
+                }
+                // TODO: Verify this logic is correct.
+                if hit && this.has_own_status(STANDARD_ESPIT) {
+                    state.esprit += 50;
+                }
+            }
+            LastDance => {
+                let iter = this
+                    .target_enemy_aoe(TG_CIRCLE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                if !consume_status(event_sink, LAST_DANCE_READY, 0) {
+                    err!(DncError::LastDance);
+                }
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(520).slashing().falloff(f), t, d);
+                }
+            }
+            FinishingMove => {
+                event_sink.apply_status(LAST_DANCE_READY, 1, this_id, 0);
+                event_sink.apply_status(STANDARD_STEP, 2, this_id, 0);
                 event_sink.apply_status(STANDARD_ESPIT, 1, this_id, 0);
                 if let Some(partner) = state.partner {
-                    event_sink.apply_status(STANDARD_FINISH_2, 1, partner, 0);
+                    event_sink.apply_status(STANDARD_STEP, 2, partner, 0);
                     event_sink.apply_status(STANDARD_ESPIT, 1, partner, 0);
                 }
-                let mut cascade = EventCascade::new(dl, 1);
-                let mut iter = target_enemy(DANCE);
-                if let Some(t) = iter.next() {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(360).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(DANCE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(25);
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(850).slashing().falloff(f), t, d);
                 }
-                for t in iter {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(180).slashing(),
-                        t,
-                        cascade.next(),
-                    );
+            }
+            DanceOfTheDawn => {
+                let iter = this
+                    .target_enemy_aoe(TG_CIRCLE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                if state.esprit < 50 {
+                    err!(DncError::Esprit);
+                } else if !this.has_own_status(DANCE_OF_THE_DAWN_READY) {
+                    err!(DncError::DanceOfTheDawn);
+                }
+                state.esprit -= 50;
+                event_sink.remove_status(DANCE_OF_THE_DAWN_READY, this_id, 0);
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(520).slashing().falloff(f), t, d);
                 }
             }
             EnAvant | CuringWaltz | ShieldSamba | Improvisation | ImprovisedFinish => {
                 // todo: implement healing/utility skills
             }
+        }
+
+        Ok(())
+    }
+
+    fn event<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
+        state: &mut Self::State,
+        _: &'w W,
+        event: &Event,
+        event_sink: &mut E,
+    ) {
+        match event {
+            Event::Status(event) => {
+                if event.target == event_sink.source().id() {
+                    if event.status == STANDARD_STEP || event.status == TECHNICAL_STEP {
+                        state.step = StepGauge::None;
+                    }
+                }
+            }
+            _ => ()
         }
     }
 }
@@ -678,12 +695,12 @@ pub enum DncError {
     PartnerActive,
     /// Ending is not the active action.
     PartnerInactive,
-}
-impl DncError {
-    /// Submits the cast error into the [`EventSink`].
-    pub fn submit<'w, W: WorldRef<'w>>(self, event_sink: &mut impl EventSink<'w, W>) {
-        event_sink.error(self.into())
-    }
+    /// Not under the effect of Last Dance Ready.
+    LastDance,
+    /// Not under the effect of Finishing Move Ready.
+    FinishingMove,
+    /// Not under the effect of Dance of the Dawn Ready.
+    DanceOfTheDawn,
 }
 
 impl From<DncError> for EventError {
@@ -868,10 +885,18 @@ pub enum DncAction {
     #[cooldown = 1500]
     #[name = "Improvised Finish"]
     ImprovisedFinish,
-    #[category = ActionCategory::Weaponskill]
-    #[gcd = ScaleTime::none(1500)]
+    #[skill]
     #[name = "Tillana"]
     Tillana,
+    #[skill]
+    #[name = "Last Dance"]
+    LastDance,
+    #[skill]
+    #[name = "Finishing Move"]
+    FinishingMove,
+    #[skill]
+    #[name = "Dance of the Dawn"]
+    DanceOfTheDawn,
 }
 
 impl JobAction for DncAction {
@@ -1058,6 +1083,8 @@ bool_job_dist! {
 }
 
 /// The random event for a standard step sequence.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
 pub struct StdStepSeqence;
 impl Distribution<[Step; 2]> for StdStepSeqence {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [Step; 2] {
@@ -1067,9 +1094,10 @@ impl Distribution<[Step; 2]> for StdStepSeqence {
         [steps[0], steps[1]]
     }
 }
+
+/// The random event for a technical step sequence.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
-/// The random event for a technical step sequence.
 pub struct TechStepSeqence;
 impl Distribution<[Step; 4]> for TechStepSeqence {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [Step; 4] {

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     enums::ActionCategory,
-    world::{status::JobEffect, ActorId, Event, EventSink, WorldRef},
+    world::{status::JobEffect, ActorId, Event, EventError, EventSink, WorldRef},
 };
 
 /// Utilities for role actions.
@@ -27,10 +27,10 @@ pub mod role;
 pub mod brd;
 /// Logic and types for Dancer.
 pub mod dnc;
-/// Logic and types for Reaper.
-pub mod rpr;
-/// Logic and types for Samurai.
-pub mod sam;
+// /// Logic and types for Reaper.
+// pub mod rpr;
+// /// Logic and types for Samurai.
+// pub mod sam;
 
 /// A set of logic for working with jobs in a uniform way.
 ///
@@ -75,7 +75,7 @@ pub trait Job: 'static {
         state: &Self::State,
         world: &'w W,
         event_sink: &mut E,
-    ) -> CastInitInfo<Self::CdGroup>;
+    ) -> Result<CastInitInfo<Self::CdGroup>, EventError>;
 
     /// Executes the specified action.
     ///
@@ -100,7 +100,7 @@ pub trait Job: 'static {
         state: &mut Self::State,
         world: &'w W,
         event_sink: &mut E,
-    );
+    ) -> Result<(), EventError>;
 
     /// Reacts to an event.
     ///
@@ -228,18 +228,18 @@ macro_rules! helper {
                 state: &State,
                 world: &'w W,
                 event_sink: &mut E,
-            ) -> CastInitInfo<CdGroup> {
-                match (self, action, state) {
+            ) -> Result<CastInitInfo<CdGroup>, EventError> {
+                Ok(match (self, action, state) {
                     $(
                         (
                             Self::$var_name,
                             Action::$var_name(action),
                             State::$var_name(state),
-                        ) => <$job>::check_cast(action, state, world, event_sink)
+                        ) => <$job>::check_cast(action, state, world, event_sink)?
                                 .map_cd_group(CdGroup::$var_name),
                     )*
                     _ => panic!("`action` and `state` do not match job type.")
-                }
+                })
             }
 
             /// Executes the specified action.
@@ -251,7 +251,7 @@ macro_rules! helper {
                 state: &mut State,
                 world: &'w W,
                 event_sink: &mut E,
-            ) {
+            ) -> Result<(), EventError> {
                 match (self, action, state) {
                     $(
                         (
@@ -586,7 +586,7 @@ macro_rules! helper {
 
 helper! {
     BRD brd Brd brd::BrdJob { "Bard" }
-    SAM sam Sam sam::SamJob { "Samurai" }
+    // SAM sam Sam sam::SamJob { "Samurai" }
     DNC dnc Dnc dnc::DncJob { "Dancer" }
-    RPR rpr Rpr rpr::RprJob { "Reaper" }
+    // RPR rpr Rpr rpr::RprJob { "Reaper" }
 }

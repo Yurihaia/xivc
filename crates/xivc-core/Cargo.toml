@@ -16,3 +16,4 @@ alloc = []
 macros.workspace = true
 serde = { workspace = true, features = [ "derive" ], optional = true }
 rand.workspace = true
+element-ptr.workspace = true

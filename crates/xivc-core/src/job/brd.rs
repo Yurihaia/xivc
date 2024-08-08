@@ -1,4 +1,7 @@
-use core::fmt::{self, Display};
+use core::{
+    error::Error,
+    fmt::{self, Display},
+};
 
 use macros::var_consts;
 
@@ -11,9 +14,9 @@ use crate::{
     job::{CastInitInfo, Job, JobAction, JobEvent, JobState},
     job_cd_struct, job_effect_wrapper,
     math::SpeedStat,
-    need_target, status_effect,
+    status_effect,
     timing::{DurationInfo, EventCascade, ScaleTime},
-    util::GaugeU8,
+    util::{status_proc_error, ActionTargettingExt as _, GaugeU8},
     world::{
         status::{consume_status, JobEffect, StatusEffect, StatusEventExt},
         Action, ActionTargetting, ActorId, ActorRef, DamageEventExt, Event, EventError, EventSink,
@@ -26,9 +29,7 @@ use crate::{
 pub struct BrdJob;
 
 /// The status effect "Straight Shot Ready".
-pub const STRAIGHT_SHOT: StatusEffect = status_effect!("Straight Shot Ready" 30000);
-/// The status effect "Shadowbite Ready".
-pub const SHADOWBITE: StatusEffect = status_effect!("Shadowbite Ready" 30000);
+pub const HAWKS_EYE: StatusEffect = status_effect!("Hawk's Eye" 30000);
 /// The status effect "Blast Arrow Ready".
 pub const BLAST_ARROW: StatusEffect = status_effect!("Blast Arrow Ready" 10000);
 /// The status effect "Raging Strikes".
@@ -37,6 +38,10 @@ pub const RAGING_STRIKES: StatusEffect = status_effect!(
 );
 /// The status effect "Barrage".
 pub const BARRAGE: StatusEffect = status_effect!("Barrage" 10000);
+/// The status effect "Resonant Arrow Ready"
+pub const RESONANT_ARROW: StatusEffect = status_effect!("Resonant Arrow Ready" 30000);
+/// The status effect "Radiant Encore Ready"
+pub const RADIANT_ENCORE: StatusEffect = status_effect!("Radiant Encore Ready" 30000);
 /// The status effect "Battle Voice".
 pub const BATTLE_VOICE: StatusEffect = status_effect!(
     "Battle Voice" 15000 { dhit { out = 200 } }
@@ -103,7 +108,7 @@ impl Job for BrdJob {
         state: &Self::State,
         _: &'w W,
         event_sink: &mut E,
-    ) -> CastInitInfo<Self::CdGroup> {
+    ) -> Result<CastInitInfo<Self::CdGroup>, EventError> {
         let this = event_sink.source();
 
         let di = this.duration_info();
@@ -119,32 +124,37 @@ impl Job for BrdJob {
 
         use BrdAction::*;
         match action {
-            ApexArrow if state.soul < 20 => BrdError::SoulVoice(20).submit(event_sink),
-            StraightShot | RefulgentArrow if !this.has_own_status(STRAIGHT_SHOT) => {
-                BrdError::StraightShot.submit(event_sink)
-            }
-            Shadowbite if !this.has_own_status(SHADOWBITE) => {
-                BrdError::Shadowbite.submit(event_sink)
+            ApexArrow if state.soul < 20 => return Err(BrdError::SoulVoice(20).into()),
+            StraightShot | RefulgentArrow | Shadowbite
+                if !this.has_own_status(HAWKS_EYE) || !this.has_own_status(BARRAGE) =>
+            {
+                return Err(BrdError::HawksEye.into());
             }
             PitchPerfect => match &state.song {
                 Some((BrdSong::Minuet(x), _)) if *x > 0 => (),
-                _ => BrdError::PitchPerfect.submit(event_sink),
+                _ => return Err(BrdError::PitchPerfect.into()),
             },
             BlastArrow if !this.has_own_status(BLAST_ARROW) => {
-                BrdError::BlastArrow.submit(event_sink)
+                return Err(BrdError::BlastArrow.into());
             }
-            RadiantFinale if state.coda.count() == 0 => BrdError::Coda.submit(event_sink),
+            RadiantFinale if state.coda.count() == 0 => return Err(BrdError::Coda.into()),
+            ResonantArrow if !this.has_own_status(RESONANT_ARROW) => {
+                return Err(BrdError::ResonantArrow.into());
+            }
+            RadiantEncore if !this.has_own_status(RADIANT_ENCORE) => {
+                return Err(BrdError::RadiantEncore.into());
+            }
             _ => (),
         }
 
-        CastInitInfo {
+        Ok(CastInitInfo {
             gcd,
             lock,
             snap,
             mp: 0,
             cd,
             alt_cd,
-        }
+        })
     }
 
     fn cast_snap<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
@@ -152,51 +162,58 @@ impl Job for BrdJob {
         state: &mut Self::State,
         _: &'w W,
         event_sink: &mut E,
-    ) {
+    ) -> Result<(), EventError> {
         let this = event_sink.source();
         let this_id = this.id();
 
         use BrdAction::*;
 
-        let target_enemy = |t: ActionTargetting| {
-            this.actors_for_action(Some(Faction::Enemy), t)
-                .map(|a| a.id())
-        };
-
         let dl = action.effect_delay();
-
-        // handle a damage event that can be tripled by Barrage
-        let barrage = |event_sink: &mut E, damage: DamageInstance, target: ActorId, delay: u32| {
-            let mut cascade = EventCascade::new(delay, 1);
-            event_sink.damage(action, damage, target, cascade.next());
-            if this.has_own_status(BARRAGE) {
-                event_sink.remove_status(BARRAGE, this_id, 0);
-                event_sink.damage(action, damage, target, cascade.next());
-                event_sink.damage(action, damage, target, cascade.next());
-            }
-        };
 
         match action {
             HeavyShot | BurstShot => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if event_sink.random(StraightShotProc) {
-                    event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
+                let t = this.target_enemy(RANGED)?.id();
+                if event_sink.random(HawksEyeProc) {
+                    event_sink.apply_status(HAWKS_EYE, 1, this_id, 0);
                 }
-                barrage(event_sink, DamageInstance::new(220).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(220).piercing(), t, dl);
             }
             StraightShot | RefulgentArrow => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                // seems to be instantly from testing
-                event_sink.remove_status(STRAIGHT_SHOT, this_id, 0);
-                barrage(event_sink, DamageInstance::new(280).piercing(), t, dl);
+                let t = this.target_enemy(RANGED)?.id();
+
+                if consume_status(event_sink, BARRAGE, 0) {
+                    let mut cascade = EventCascade::new(dl, 1);
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(280).piercing(),
+                        t,
+                        cascade.next(),
+                    );
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(280).piercing(),
+                        t,
+                        cascade.next(),
+                    );
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(280).piercing(),
+                        t,
+                        cascade.next(),
+                    );
+                } else if consume_status(event_sink, HAWKS_EYE, 0) {
+                    event_sink.damage(action, DamageInstance::new(280).piercing(), t, dl);
+                } else {
+                    return Err(BrdError::HawksEye.into());
+                }
             }
             RagingStrikes => {
                 event_sink.apply_status(RAGING_STRIKES, 1, this_id, dl);
             }
             VenomousBite | CausticBite => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if event_sink.random(StraightShotProc) {
-                    event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
+                let t = this.target_enemy(RANGED)?.id();
+                if event_sink.random(HawksEyeProc) {
+                    event_sink.apply_status(HAWKS_EYE, 1, this_id, 0);
                 }
                 event_sink.apply_dot(
                     CAUSTIC_BITE,
@@ -206,35 +223,27 @@ impl Job for BrdJob {
                     t,
                     dl,
                 );
-                barrage(event_sink, DamageInstance::new(150).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(150).piercing(), t, dl);
             }
-            Bloodletter => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                barrage(event_sink, DamageInstance::new(110).piercing(), t, dl);
+            Bloodletter | HeartbreakShot => {
+                let t = this.target_enemy(RANGED)?.id();
+                event_sink.damage(action, DamageInstance::new(110).piercing(), t, dl);
             }
             QuickNock | Ladonsbite => {
-                let iter = need_target!(
-                    target_enemy(ActionTargetting::cone(12, 90)),
-                    event_sink,
-                    uaoe
-                );
-                let mut cascade = EventCascade::new(dl, 1);
-                for t in iter {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(130).piercing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(ActionTargetting::cone(12, 90), EventCascade::new(dl, 1))?
+                    .id();
+                if event_sink.random(HawksEyeProc) {
+                    event_sink.apply_status(HAWKS_EYE, 1, this_id, 0);
                 }
-                if event_sink.random(ShadowbiteProc) {
-                    event_sink.apply_status(SHADOWBITE, 1, this_id, 0);
+                for (t, d) in iter {
+                    event_sink.damage(action, DamageInstance::new(130).piercing(), t, d);
                 }
             }
             Windbite | Stormbite => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
-                if event_sink.random(StraightShotProc) {
-                    event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
+                let t = this.target_enemy(RANGED)?.id();
+                if event_sink.random(HawksEyeProc) {
+                    event_sink.apply_status(HAWKS_EYE, 1, this_id, 0);
                 }
                 event_sink.apply_dot(
                     STORMBITE,
@@ -244,14 +253,16 @@ impl Job for BrdJob {
                     t,
                     dl,
                 );
-                barrage(event_sink, DamageInstance::new(100).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).piercing(), t, dl);
             }
             Barrage => {
                 event_sink.apply_status(BARRAGE, 1, this_id, 0);
-                event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
+                event_sink.apply_status(RESONANT_ARROW, 1, this_id, 0);
             }
             MagesBallad => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                if !this.in_combat() {
+                    return Err(EventError::InCombat);
+                }
                 // apply army's muse
                 if let Some((BrdSong::Paeon(rep), _)) = &state.song {
                     if rep.value() > 0 {
@@ -273,11 +284,11 @@ impl Job for BrdJob {
                     JobEvent::brd(BrdEvent::song_tick(state.song_gen), this_id),
                     3000,
                 );
-                // apply damage
-                event_sink.damage(action, DamageInstance::new(100).magical(), t, dl);
             }
             ArmysPaeon => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                if !this.in_combat() {
+                    return Err(EventError::InCombat);
+                }
                 // don't worry about army's muse because valid uses of paeon won't
                 // be able to apply them
                 // update song
@@ -292,36 +303,30 @@ impl Job for BrdJob {
                     JobEvent::brd(BrdEvent::song_tick(state.song_gen), this_id),
                     3000,
                 );
-                // apply damage
-                event_sink.damage(action, DamageInstance::new(100).magical(), t, dl);
             }
             RainOfDeath => {
-                let iter = need_target!(
-                    target_enemy(ActionTargetting::target_circle(8, 25)),
-                    event_sink,
-                    uaoe
-                );
-                let mut cascade = EventCascade::new(dl, 1);
-                for t in iter {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(100).piercing(),
-                        t,
-                        cascade.next(),
-                    );
+                let iter = this
+                    .target_enemy_aoe(
+                        ActionTargetting::target_circle(8, 25),
+                        EventCascade::new(dl, 1),
+                    )?
+                    .id();
+                for (t, d) in iter {
+                    event_sink.damage(action, DamageInstance::new(100).piercing(), t, d);
                 }
             }
             BattleVoice => {
                 let iter = this
-                    .actors_for_action(Some(Faction::Party), ActionTargetting::circle(30))
-                    .map(|a| a.id());
-                let mut cascade = EventCascade::new(dl, 3);
-                for t in iter {
-                    event_sink.apply_status(BATTLE_VOICE, 1, t, cascade.next());
+                    .target_party_aoe(ActionTargetting::circle(30), EventCascade::new(dl, 3))?
+                    .id();
+                for (t, d) in iter {
+                    event_sink.apply_status(BATTLE_VOICE, 1, t, d);
                 }
             }
             WanderersMinuet => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                if !this.in_combat() {
+                    return Err(EventError::InCombat);
+                }
                 // apply army's muse
                 if let Some((BrdSong::Paeon(rep), _)) = &state.song {
                     if rep.value() > 0 {
@@ -343,23 +348,19 @@ impl Job for BrdJob {
                     JobEvent::brd(BrdEvent::song_tick(state.song_gen), this_id),
                     3000,
                 );
-                // apply damage
-                event_sink.damage(action, DamageInstance::new(100).magical(), t, dl);
             }
             EmpyrealArrow => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                let t = this.target_enemy(RANGED)?.id();
                 repertoire(state, this_id, event_sink);
                 event_sink.damage(action, DamageInstance::new(240).piercing(), t, dl);
             }
             IronJaws => {
-                let target_actor = need_target!(
-                    this.actors_for_action(Some(Faction::Enemy), RANGED).next(),
-                    event_sink
-                );
-                if event_sink.random(StraightShotProc) {
-                    event_sink.apply_status(STRAIGHT_SHOT, 1, this_id, 0);
-                }
+                let target_actor = this.target_enemy(RANGED)?;
                 let t = target_actor.id();
+
+                if event_sink.random(HawksEyeProc) {
+                    event_sink.apply_status(HAWKS_EYE, 1, this_id, 0);
+                }
                 // if the target has stormbite/caustic bite, reapply them.
                 if target_actor.has_status(STORMBITE, this_id) {
                     event_sink.apply_dot(
@@ -381,94 +382,131 @@ impl Job for BrdJob {
                         dl,
                     );
                 }
-                barrage(event_sink, DamageInstance::new(100).piercing(), t, dl);
+                event_sink.damage(action, DamageInstance::new(100).piercing(), t, dl);
             }
             Sidewinder => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                let t = this.target_enemy(RANGED)?.id();
                 event_sink.damage(action, DamageInstance::new(320).piercing(), t, dl);
             }
             Shadowbite => {
-                let iter = need_target!(
-                    target_enemy(ActionTargetting::target_circle(5, 25)),
-                    event_sink,
-                    uaoe
-                );
+                let iter = this.target_enemy_aoe(TC5Y, EventCascade::new(dl, 1))?.id();
                 let barrage = consume_status(event_sink, BARRAGE, 0);
-                event_sink.remove_status(SHADOWBITE, this_id, 0);
+                if !barrage {
+                    event_sink.remove_status(HAWKS_EYE, this_id, 0);
+                }
                 let potency = if barrage { 270 } else { 170 };
-                for t in iter {
-                    event_sink.damage(action, DamageInstance::new(potency).piercing(), t, dl);
+                for (t, d) in iter {
+                    event_sink.damage(action, DamageInstance::new(potency).piercing(), t, d);
                 }
             }
             ApexArrow => {
-                let iter = need_target!(target_enemy(LINE), event_sink, uaoe);
-                let potency = *state.soul * 5;
+                let iter = this.target_enemy_aoe(LINE, EventCascade::new(dl, 1))?.id();
+                if state.soul < 20 {
+                    return Err(BrdError::SoulVoice(20).into());
+                }
+                let potency = *state.soul as u64 * 6;
                 if state.soul >= 80 {
                     event_sink.apply_status(BLAST_ARROW, 1, this_id, 0);
                 }
                 state.soul.clear();
-                let mut cascade = EventCascade::new(dl, 1);
-                for t in iter {
-                    event_sink.damage(
-                        action,
-                        DamageInstance::new(potency as u64).piercing(),
-                        t,
-                        cascade.next(),
-                    );
+                for (t, d) in iter {
+                    event_sink.damage(action, DamageInstance::new(potency).piercing(), t, d);
                 }
             }
             RadiantFinale => {
                 let iter = this
-                    .actors_for_action(Some(Faction::Party), ActionTargetting::circle(30))
-                    .map(|a| a.id());
-                let mut cascade = EventCascade::new(dl, 3);
+                    .target_party_aoe(ActionTargetting::circle(30), EventCascade::new(dl, 3))?
+                    .id();
                 let stacks = state.coda.count();
+                event_sink.apply_status(RADIANT_ENCORE, stacks, this_id, 0);
                 state.coda.clear();
-                for t in iter {
-                    event_sink.apply_status(RADIANT_FINALE, stacks, t, cascade.next());
+                for (t, d) in iter {
+                    event_sink.apply_status(RADIANT_FINALE, stacks, t, d);
                 }
             }
             PitchPerfect => {
-                let t = need_target!(target_enemy(RANGED).next(), event_sink);
+                let iter = this
+                    .target_enemy_aoe(TC5Y, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
                 let rep_stacks = match &mut state.song {
                     Some((BrdSong::Minuet(rep), _)) => {
                         let out = **rep;
                         rep.clear();
                         out
                     }
-                    _ => 0,
+                    _ => return Err(BrdError::PitchPerfect.into()),
                 };
                 let potency = match rep_stacks {
                     1 => 100,
                     2 => 220,
                     3 => 360,
-                    _ => 0,
+                    _ => return Err(BrdError::PitchPerfect.into()),
                 };
-                event_sink.damage(action, DamageInstance::new(potency).piercing(), t, dl);
-            }
-            BlastArrow => {
-                let (first, other) = need_target!(target_enemy(LINE), event_sink, aoe);
-                event_sink.remove_status(BLAST_ARROW, this_id, 0);
-                let mut cascade = EventCascade::new(dl, 1);
-                event_sink.damage(
-                    action,
-                    DamageInstance::new(600).piercing(),
-                    first,
-                    cascade.next(),
-                );
-                for t in other {
+                for (t, d, f) in iter {
                     event_sink.damage(
                         action,
-                        DamageInstance::new(240).piercing(),
+                        DamageInstance::new(potency).piercing().falloff(f),
                         t,
-                        cascade.next(),
+                        d,
                     );
+                }
+            }
+            BlastArrow => {
+                let iter = this
+                    .target_enemy_aoe(LINE, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(40);
+                if !consume_status(event_sink, BLAST_ARROW, 0) {
+                    return Err(BrdError::BlastArrow.into());
+                }
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(600).piercing().falloff(f), t, d);
                 }
             }
             RepellingShot | WardensPaean | NaturesMinne | Troubadour => {
                 // unimplemented
             }
+            ResonantArrow => {
+                let iter = this
+                    .target_enemy_aoe(TC5Y, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                if !consume_status(event_sink, RESONANT_ARROW, 0) {
+                    return Err(BrdError::ResonantArrow.into());
+                }
+                for (t, d, f) in iter {
+                    event_sink.damage(action, DamageInstance::new(600).piercing().falloff(f), t, d)
+                }
+            }
+            RadiantEncore => {
+                let iter = this
+                    .target_enemy_aoe(TC5Y, EventCascade::new(dl, 1))?
+                    .id()
+                    .falloff(50);
+                let potency = if let Some(s) = this.get_own_status(RADIANT_ENCORE) {
+                    match s.stack {
+                        1 => 500,
+                        2 => 600,
+                        3 => 900,
+                        _ => 0,
+                    }
+                } else {
+                    return Err(BrdError::RadiantEncore.into());
+                };
+                event_sink.remove_status(RADIANT_ENCORE, this_id, 0);
+                for (t, d, f) in iter {
+                    event_sink.damage(
+                        action,
+                        DamageInstance::new(potency).piercing().falloff(f),
+                        t,
+                        d,
+                    )
+                }
+            }
         }
+
+        Ok(())
     }
 
     fn event<'w, W: WorldRef<'w>, E: EventSink<'w, W>>(
@@ -566,21 +604,17 @@ pub enum BrdError {
     /// Not enough Soul Voice gauge.
     SoulVoice(u8),
     /// Not under the effect of Straight Shot Ready.
-    StraightShot,
-    /// Not under the effect of Shadowbite Ready.
-    Shadowbite,
+    HawksEye,
     /// Not enough stacks of Repertoire to cast Pitch Perfect.
     PitchPerfect,
     /// Not under the effect of Blast Arrow Ready.
     BlastArrow,
     /// Not enough Coda.
     Coda,
-}
-impl BrdError {
-    /// Submits the cast error into the [`EventSink`].
-    pub fn submit<'w, W: WorldRef<'w>>(self, event_sink: &mut impl EventSink<'w, W>) {
-        event_sink.error(self.into())
-    }
+    /// Not under the effect of Resonant Arrow Ready.
+    ResonantArrow,
+    /// Not under the effect of Radiant Encore Ready.
+    RadiantEncore,
 }
 
 impl From<BrdError> for EventError {
@@ -595,19 +629,23 @@ impl Display for BrdError {
             Self::SoulVoice(req) => {
                 write!(f, "Not enough Soul Voice gauge, needed at least {}.", req)
             }
-            Self::StraightShot => write!(f, "Not under the effect of '{}'.", STRAIGHT_SHOT.name),
-            Self::Shadowbite => write!(f, "Not under the effect of '{}'.", SHADOWBITE.name),
+            Self::HawksEye => status_proc_error(f, HAWKS_EYE),
             Self::PitchPerfect => write!(
                 f,
                 "Not enough stacks of Repertoire to cast 'Pitch Perfect'."
             ),
-            Self::BlastArrow => write!(f, "Not under the effect of '{}'.", BLAST_ARROW.name),
+            Self::BlastArrow => status_proc_error(f, BLAST_ARROW),
             Self::Coda => write!(f, "Not enough Coda."),
+            Self::ResonantArrow => status_proc_error(f, RESONANT_ARROW),
+            Self::RadiantEncore => status_proc_error(f, RADIANT_ENCORE),
         }
     }
 }
 
+impl Error for BrdError {}
+
 const RANGED: ActionTargetting = ActionTargetting::single(25);
+const TC5Y: ActionTargetting = ActionTargetting::target_circle(5, 25);
 const LINE: ActionTargetting = ActionTargetting::line(25);
 
 #[cfg_attr(
@@ -748,6 +786,15 @@ pub enum BrdAction {
     #[skill]
     #[name = "Blast Arrow"]
     BlastArrow,
+    #[ability]
+    #[name = "Heartbreak Shot"]
+    HeartbreakShot,
+    #[skill]
+    #[name = "Resonant Arrow"]
+    ResonantArrow,
+    #[skill]
+    #[name = "Radiant Encore"]
+    RadiantEncore,
 }
 
 impl JobAction for BrdAction {
@@ -886,8 +933,8 @@ job_cd_struct! {
 
     "Raging Strikes"
     raging Raging: RagingStrikes;
-    "Bloodletter/Rain of Death"
-    bloodletter Bloodletter: Bloodletter RainOfDeath;
+    "Bloodletter/Heartbreak Shot/Rain of Death"
+    bloodletter Bloodletter: Bloodletter RainOfDeath HeartbreakShot;
     // "Repelling Shot"
     // repelling Repelling: RepellingShot;
     "Barrage"
@@ -914,7 +961,7 @@ job_cd_struct! {
     finale Finale: RadiantFinale;
     "Pitch Perfect"
     pitch Pitch: PitchPerfect;
-    "Bloodletter/Rain of Death Charge"
+    "Bloodletter/Heartbreak Shot/Rain of Death Charge"
     bloodletter_chg BloodLetterChg;
 }
 
@@ -927,7 +974,9 @@ impl BrdAction {
     /// [cooldown group]: BrdCdGroup
     pub const fn alt_cd_group(&self) -> Option<BrdCdGroup> {
         match self {
-            Self::Bloodletter | Self::RainOfDeath => Some(BrdCdGroup::BloodLetterChg),
+            Self::Bloodletter | Self::RainOfDeath | Self::HeartbreakShot => {
+                Some(BrdCdGroup::BloodLetterChg)
+            }
             _ => None,
         }
     }
@@ -957,9 +1006,7 @@ impl BrdEvent {
 
 bool_job_dist! {
     /// The random event for a Straight Shot proc.
-    pub StraightShotProc = 35 / 100;
-    /// The random event for a Straight Shot proc.
-    pub ShadowbiteProc = 35 / 100;
+    pub HawksEyeProc = 35 / 100;
     /// The random event for a Repertoire proc.
     pub RepertoireProc = 8 / 10;
 }
