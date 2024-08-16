@@ -87,7 +87,7 @@ impl<E> RadixEventQueue<E> {
     ///
     /// [popped]: RadixEventQueue::pop
     pub fn push(&mut self, time: u32, event: E) {
-        assert!(self.time <= time);
+        assert!(self.time <= time, "{} <= {}", self.time, time);
         // a radix dist of 0 is the head bucket, while radix dists of 1..=32
         // is the index of the bucket in `buckets` + 1
         if let Some(bucket) = radix_dist(self.time, time).checked_sub(1) {

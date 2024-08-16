@@ -460,17 +460,30 @@ macro_rules! helper {
                 })
             }
             /// Returns an iterator over the values in this cooldown map.
-            pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T> {
-                match self {
-                    $(Self::$var_name(v) => v.iter(),)*
-                }
+            pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T, CdGroup> {
+                $crate::timing::CdMapIter::new(self, Self::iter_get)
             }
             /// Returns a mutable iterator over the values in this cooldown map.
-            pub fn iter_mut(&mut self) -> $crate::timing::CdMapIterMut<'_, T> {
+            pub fn iter_mut(&mut self) -> $crate::timing::CdMapIterMut<'_, T, CdGroup> {
+                $crate::timing::CdMapIterMut::new(self, Self::iter_get_mut)
+            }
+            
+            pub(crate) fn iter_get(&self, index: usize) -> Option<(&T, CdGroup)> {
                 match self {
-                    $(Self::$var_name(v) => v.iter_mut(),)*
+                    $(
+                        Self::$var_name(v) => v.iter_get(index).map(|(v, g)| (v, CdGroup::$var_name(g))),
+                    )*
                 }
             }
+            
+            pub(crate) fn iter_get_mut(&mut self, index: usize) -> Option<(&mut T, CdGroup)> {
+                match self {
+                    $(
+                        Self::$var_name(v) => v.iter_get_mut(index).map(|(v, g)| (v, CdGroup::$var_name(g))),
+                    )*
+                }
+            }
+            
             /// Returns the default state for some specific job.
             pub fn default_for(job: $crate::enums::Job) -> Self
             where

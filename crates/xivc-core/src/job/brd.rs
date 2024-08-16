@@ -29,27 +29,27 @@ use crate::{
 pub struct BrdJob;
 
 /// The status effect "Straight Shot Ready".
-pub const HAWKS_EYE: StatusEffect = status_effect!("Hawk's Eye" 30000);
+pub static HAWKS_EYE: StatusEffect = status_effect!("Hawk's Eye" 30000);
 /// The status effect "Blast Arrow Ready".
-pub const BLAST_ARROW: StatusEffect = status_effect!("Blast Arrow Ready" 10000);
+pub static BLAST_ARROW: StatusEffect = status_effect!("Blast Arrow Ready" 10000);
 /// The status effect "Raging Strikes".
-pub const RAGING_STRIKES: StatusEffect = status_effect!(
+pub static RAGING_STRIKES: StatusEffect = status_effect!(
     "Raging Strikes" 20000 { damage { out = 115 / 100 } }
 );
 /// The status effect "Barrage".
-pub const BARRAGE: StatusEffect = status_effect!("Barrage" 10000);
+pub static BARRAGE: StatusEffect = status_effect!("Barrage" 10000);
 /// The status effect "Resonant Arrow Ready"
-pub const RESONANT_ARROW: StatusEffect = status_effect!("Resonant Arrow Ready" 30000);
+pub static RESONANT_ARROW: StatusEffect = status_effect!("Resonant Arrow Ready" 30000);
 /// The status effect "Radiant Encore Ready"
-pub const RADIANT_ENCORE: StatusEffect = status_effect!("Radiant Encore Ready" 30000);
+pub static RADIANT_ENCORE: StatusEffect = status_effect!("Radiant Encore Ready" 30000);
 /// The status effect "Battle Voice".
-pub const BATTLE_VOICE: StatusEffect = status_effect!(
+pub static BATTLE_VOICE: StatusEffect = status_effect!(
     "Battle Voice" 15000 { dhit { out = 200 } }
 );
 // technically doesn't use stacks in game but
 // it shouldn't matter really. it works well enough
 /// The status effect "Radiant Finale".
-pub const RADIANT_FINALE: StatusEffect = status_effect!(
+pub static RADIANT_FINALE: StatusEffect = status_effect!(
     "Radiant Finale" 15000 { damage { out = |s, d, _, _| {
         d * (s.stack as u64 * 2 + 100) / 100
     } } }
@@ -57,26 +57,26 @@ pub const RADIANT_FINALE: StatusEffect = status_effect!(
 // despite appearing permanent, these are actually buffs with a 5s duration
 // that get refreshed every 3 seconds
 /// The status effect "Mage's Ballad".
-pub const BALLAD: StatusEffect = status_effect!(
+pub static BALLAD: StatusEffect = status_effect!(
     "Mage's Ballad" 5000 { damage { out = 11 / 10 } }
 );
 /// The status effect "Army's Paeon".
-pub const PAEON: StatusEffect = status_effect!(
+pub static PAEON: StatusEffect = status_effect!(
     "Army's Paeon" 5000 { dhit { out = 30 } }
 );
 /// The status effect "The Wanderer's Minuet".
-pub const MINUET: StatusEffect = status_effect!(
+pub static MINUET: StatusEffect = status_effect!(
     "The Wanderer's Minuet"  5000 { crit { out = 20 }}
 );
 /// The status effect "Troubadour".
-pub const TROUBADOUR: StatusEffect = status_effect!(
+pub static TROUBADOUR: StatusEffect = status_effect!(
     "Troubadour" 15000 { damage { in = 9 / 10 } }
 );
 /// The status effect "Army's Ethos".
-pub const ETHOS: StatusEffect = status_effect!("Army's Ethos" 30000);
+pub static ETHOS: StatusEffect = status_effect!("Army's Ethos" 30000);
 // again, just like radiant finale, use stacks to store the rep stacks
 /// The status effect "Army's Muse".
-pub const MUSE: StatusEffect = status_effect!(
+pub static MUSE: StatusEffect = status_effect!(
     "Army's Muse" 10000 { haste { |i| 100 - match i.stack {
         1 => 1,
         2 => 2,
@@ -87,9 +87,9 @@ pub const MUSE: StatusEffect = status_effect!(
 );
 // dots
 /// The DoT effect "Caustic Bite".
-pub const CAUSTIC_BITE: StatusEffect = status_effect!("Caustic Bite" 45000 multi);
+pub static CAUSTIC_BITE: StatusEffect = status_effect!("Caustic Bite" 45000 multi);
 /// The DoT effect "Stormbite".
-pub const STORMBITE: StatusEffect = status_effect!("Stormbite" 45000 multi);
+pub static STORMBITE: StatusEffect = status_effect!("Stormbite" 45000 multi);
 // TODO: minne and paean
 // this can be done if/when healing is implemented
 

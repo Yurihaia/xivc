@@ -15,7 +15,7 @@ use crate::{
     timing::{DurationInfo, EventCascade, ScaleTime},
     util::{combo_pot, ActionTargettingExt as _, ComboState, GaugeU8},
     world::{
-        status::{consume_status, StatusEffect, StatusEventExt},
+        status::{consume_status, StatusEffect, StatusEventExt, StatusEventKind},
         Action, ActionTargetting, ActorId, ActorRef, DamageEventExt, Event, EventError, EventSink,
         WorldRef,
     },
@@ -27,13 +27,13 @@ pub struct DncJob;
 
 // TODO: Status Effect Definitions
 /// The status effect "Silken Symmetry".
-pub const SILKEN_SYMM: StatusEffect = status_effect!("Silken Symmetry" 30000);
+pub static SILKEN_SYMM: StatusEffect = status_effect!("Silken Symmetry" 30000);
 /// The status effect "Silken Flow".
-pub const SILKEN_FLOW: StatusEffect = status_effect!("Silken Flow" 30000);
+pub static SILKEN_FLOW: StatusEffect = status_effect!("Silken Flow" 30000);
 /// The status effect "Standard Step".
-pub const STANDARD_STEP: StatusEffect = status_effect!("Standard Step" 15000);
+pub static STANDARD_STEP: StatusEffect = status_effect!("Standard Step" 15000);
 /// The status effect "Standard Finish".
-pub const STANDARD_FINISH: StatusEffect = status_effect!(
+pub static STANDARD_FINISH: StatusEffect = status_effect!(
     "Standard Finish" 60000 { damage { out = |s, d, _, _| {
         d * match s.stack {
             1 => 102,
@@ -43,23 +43,23 @@ pub const STANDARD_FINISH: StatusEffect = status_effect!(
     } } }
 );
 /// The status effect "Esprit" from Standard Finish.
-pub const STANDARD_ESPIT: StatusEffect = status_effect!("Esprit" 60000);
+pub static STANDARD_ESPIT: StatusEffect = status_effect!("Esprit" 60000);
 /// The status effect "Closed Position".
-pub const CLOSED_POSITION: StatusEffect = status_effect!("Closed Position" permanent);
+pub static CLOSED_POSITION: StatusEffect = status_effect!("Closed Position" permanent);
 /// The status effect "Dance Partner".
-pub const DANCE_PARTNER: StatusEffect = status_effect!("Dance Partner" permanent);
+pub static DANCE_PARTNER: StatusEffect = status_effect!("Dance Partner" permanent);
 /// The status effect "Devilment".
-pub const DEVILMENT: StatusEffect = status_effect!(
+pub static DEVILMENT: StatusEffect = status_effect!(
     "Devilment" 20000 { crit { out = 200 } dhit { out = 200 } }
 );
 /// The status effect "Flourishing Starfall".
-pub const STARFALL: StatusEffect = status_effect!("Flourishing Starfall" 20000);
+pub static STARFALL: StatusEffect = status_effect!("Flourishing Starfall" 20000);
 /// The status effect "Threefold Fan Dance".
-pub const FAN_DANCE_3: StatusEffect = status_effect!("Threefold Fan Dance" 30000);
+pub static FAN_DANCE_3: StatusEffect = status_effect!("Threefold Fan Dance" 30000);
 /// The status effect "Technical Step".
-pub const TECHNICAL_STEP: StatusEffect = status_effect!("Technical Step" 15000);
+pub static TECHNICAL_STEP: StatusEffect = status_effect!("Technical Step" 15000);
 /// The status effect "Technical Finish".
-pub const TECHNICAL_FINISH: StatusEffect = status_effect!(
+pub static TECHNICAL_FINISH: StatusEffect = status_effect!(
     "Technical Finish" 20000 { damage { out = |s, d, _, _| {
         d * match s.stack {
             1 => 101,
@@ -71,21 +71,21 @@ pub const TECHNICAL_FINISH: StatusEffect = status_effect!(
     } } }
 );
 /// The status effect "Esprit" from Technical Finish.
-pub const TECHNICAL_ESPIT: StatusEffect = status_effect!("Esprit" 20000);
+pub static TECHNICAL_ESPIT: StatusEffect = status_effect!("Esprit" 20000);
 /// The status effect "Flourishing Finish".
-pub const FLOURISH_FINISH: StatusEffect = status_effect!("Flourishing Finish" 30000);
+pub static FLOURISH_FINISH: StatusEffect = status_effect!("Flourishing Finish" 30000);
 /// The status effect "Flourishing Symmetry".
-pub const FLOURISH_SYMM: StatusEffect = status_effect!("Flourishing Symmetry" 30000);
+pub static FLOURISH_SYMM: StatusEffect = status_effect!("Flourishing Symmetry" 30000);
 /// The status effect "Flourishing Flow".
-pub const FLOURISH_FLOW: StatusEffect = status_effect!("Flourishing Flow" 30000);
+pub static FLOURISH_FLOW: StatusEffect = status_effect!("Flourishing Flow" 30000);
 /// The status effect "Fourfold Fan Dance".
-pub const FAN_DANCE_4: StatusEffect = status_effect!("Fourfold Fan Dance" 30000);
+pub static FAN_DANCE_4: StatusEffect = status_effect!("Fourfold Fan Dance" 30000);
 /// The status effect "Last Dance Ready".
-pub const LAST_DANCE_READY: StatusEffect = status_effect!("Last Dance Ready" 30000);
+pub static LAST_DANCE_READY: StatusEffect = status_effect!("Last Dance Ready" 30000);
 /// The status effect "Finishing Move Ready".
-pub const FINISHING_MOVE_READY: StatusEffect = status_effect!("Finishing Move Ready" 30000);
+pub static FINISHING_MOVE_READY: StatusEffect = status_effect!("Finishing Move Ready" 30000);
 /// The status effect "Dance of the Dawn Ready".
-pub const DANCE_OF_THE_DAWN_READY: StatusEffect = status_effect!("Dance of the Dawn Ready" 30000);
+pub static DANCE_OF_THE_DAWN_READY: StatusEffect = status_effect!("Dance of the Dawn Ready" 30000);
 
 impl Job for DncJob {
     type Action = DncAction;
@@ -496,10 +496,10 @@ impl Job for DncJob {
                 // technical step, but i'm not sure and in reality
                 // it should not be encountered.
                 if completed > 0 {
-                    event_sink.apply_status(STANDARD_STEP, completed, this_id, 0);
+                    event_sink.apply_status(STANDARD_FINISH, completed, this_id, 0);
                     event_sink.apply_status(STANDARD_ESPIT, 1, this_id, 0);
                     if let Some(partner) = state.partner {
-                        event_sink.apply_status(STANDARD_STEP, completed, partner, 0);
+                        event_sink.apply_status(STANDARD_FINISH, completed, partner, 0);
                         event_sink.apply_status(STANDARD_ESPIT, 1, partner, 0);
                     }
                 }
@@ -603,11 +603,14 @@ impl Job for DncJob {
                 }
             }
             FinishingMove => {
+                if !consume_status(event_sink, FINISHING_MOVE_READY, 0) {
+                    err!(DncError::FinishingMove);
+                }
                 event_sink.apply_status(LAST_DANCE_READY, 1, this_id, 0);
-                event_sink.apply_status(STANDARD_STEP, 2, this_id, 0);
+                event_sink.apply_status(STANDARD_FINISH, 2, this_id, 0);
                 event_sink.apply_status(STANDARD_ESPIT, 1, this_id, 0);
                 if let Some(partner) = state.partner {
-                    event_sink.apply_status(STANDARD_STEP, 2, partner, 0);
+                    event_sink.apply_status(STANDARD_FINISH, 2, partner, 0);
                     event_sink.apply_status(STANDARD_ESPIT, 1, partner, 0);
                 }
                 let iter = this
@@ -650,7 +653,7 @@ impl Job for DncJob {
     ) {
         match event {
             Event::Status(event) => {
-                if event.target == event_sink.source().id() {
+                if event.target == event_sink.source().id() && matches!(event.kind, StatusEventKind::Remove) {
                     if event.status == STANDARD_STEP || event.status == TECHNICAL_STEP {
                         state.step = StepGauge::None;
                     }
@@ -771,6 +774,7 @@ pub enum DncAction {
     Windmill,
     #[category = ActionCategory::Weaponskill]
     #[gcd = ScaleTime::none(1500)]
+    #[cooldown = 30000]
     #[name = "Standard Step"]
     StandardStep,
     #[skill]
@@ -892,6 +896,7 @@ pub enum DncAction {
     #[name = "Last Dance"]
     LastDance,
     #[skill]
+    #[cooldown = 30000]
     #[name = "Finishing Move"]
     FinishingMove,
     #[skill]
@@ -1044,7 +1049,7 @@ job_cd_struct! {
     pub DncCdGroup
 
     "Standard Step"
-    standard Standard: StandardStep;
+    standard Standard: StandardStep FinishingMove;
     "Fan Dance"
     fan_1 Fan1: FanDance;
     "Fan Dance II"

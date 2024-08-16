@@ -268,6 +268,17 @@ macro_rules! job_cd_struct {
             )*
         }
 
+        impl $cdg_id {
+            /// Returns the actions that are mapped to this cooldown group.
+            pub fn actions(&self) -> &'static [$acty] {
+                match self {
+                    $(
+                        Self::$cdgv_name => &[ $( $(<$acty>::$aci),+ )? ],
+                    )*
+                }
+            }
+        }
+
         impl<T> $cds_id<T> {
             /// Returns a reference to the value associated with the cooldown group.
             pub fn get(&self, cdg: $cdg_id) -> &T {
@@ -286,19 +297,21 @@ macro_rules! job_cd_struct {
                 }
             }
             /// Returns an iterator over the values in this cooldown map.
-            pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T> {
+            pub fn iter(&self) -> $crate::timing::CdMapIter<'_, T, $cdg_id> {
                 $crate::timing::CdMapIter::new(self, Self::iter_get)
             }
             /// Returns a mutable iterator over the values in this cooldown map.
-            pub fn iter_mut(&mut self) -> $crate::timing::CdMapIterMut<'_, T> {
+            pub fn iter_mut(&mut self) -> $crate::timing::CdMapIterMut<'_, T, $cdg_id> {
                 $crate::timing::CdMapIterMut::new(self, Self::iter_get_mut)
             }
 
-            fn iter_get(&self, index: usize) -> Option<&T> {
-                Some(self.get(*Self::GROUPS.get(index)?))
+            pub(crate) fn iter_get(&self, index: usize) -> Option<(&T, $cdg_id)> {
+                let group = *Self::GROUPS.get(index)?;
+                Some((self.get(group), group))
             }
-            fn iter_get_mut(&mut self, index: usize) -> Option<&mut T> {
-                Some(self.get_mut(*Self::GROUPS.get(index)?))
+            pub(crate) fn iter_get_mut(&mut self, index: usize) -> Option<(&mut T, $cdg_id)> {
+                let group = *Self::GROUPS.get(index)?;
+                Some((self.get_mut(group), group))
             }
 
             /// The cooldown groups associated with this cooldown map.
@@ -330,16 +343,16 @@ macro_rules! job_cd_struct {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// An iterator over the values in a cooldown map.
-pub struct CdMapIter<'a, T: 'a> {
+pub struct CdMapIter<'a, T: 'a, G> {
     map: NonNull<()>,
-    get: fn(NonNull<()>, usize) -> Option<NonNull<T>>,
+    get: fn(NonNull<()>, usize) -> Option<(NonNull<T>, G)>,
     index: usize,
     marker: PhantomData<&'a T>,
 }
 
-impl<'a, T: 'a> CdMapIter<'a, T> {
+impl<'a, T: 'a, G> CdMapIter<'a, T, G> {
     /// Creates a new cooldown map iterator from a map and a get function.
-    pub fn new<M>(map: &M, get: fn(&M, usize) -> Option<&T>) -> Self {
+    pub fn new<M>(map: &M, get: fn(&M, usize) -> Option<(&T, G)>) -> Self {
         Self {
             map: NonNull::from(map).cast(),
             #[allow(clippy::missing_transmute_annotations)]
@@ -350,28 +363,28 @@ impl<'a, T: 'a> CdMapIter<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Iterator for CdMapIter<'a, T> {
-    type Item = &'a T;
+impl<'a, T: 'a, G> Iterator for CdMapIter<'a, T, G> {
+    type Item = (&'a T, G);
 
     fn next(&mut self) -> Option<Self::Item> {
         let out = (self.get)(self.map, self.index)?;
         self.index += 1;
-        unsafe { Some(out.as_ref()) }
+        unsafe { Some((out.0.as_ref(), out.1)) }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// An iterator over the values in a cooldown map.
-pub struct CdMapIterMut<'a, T: 'a> {
+pub struct CdMapIterMut<'a, T: 'a, G> {
     map: NonNull<()>,
-    get: fn(NonNull<()>, usize) -> Option<NonNull<T>>,
+    get: fn(NonNull<()>, usize) -> Option<(NonNull<T>, G)>,
     index: usize,
     marker: PhantomData<&'a mut T>,
 }
 
-impl<'a, T: 'a> CdMapIterMut<'a, T> {
+impl<'a, T: 'a, G> CdMapIterMut<'a, T, G> {
     /// Creates a new cooldown map iterator from a map and a get function.
-    pub fn new<M>(map: &mut M, get: fn(&mut M, usize) -> Option<&mut T>) -> Self {
+    pub fn new<M>(map: &mut M, get: fn(&mut M, usize) -> Option<(&mut T, G)>) -> Self {
         Self {
             map: NonNull::from(map).cast(),
             #[allow(clippy::missing_transmute_annotations)]
@@ -382,13 +395,13 @@ impl<'a, T: 'a> CdMapIterMut<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Iterator for CdMapIterMut<'a, T> {
-    type Item = &'a mut T;
+impl<'a, T: 'a, G> Iterator for CdMapIterMut<'a, T, G> {
+    type Item = (&'a mut T, G);
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut out = (self.get)(self.map, self.index)?;
         self.index += 1;
-        unsafe { Some(out.as_mut()) }
+        unsafe { Some((out.0.as_mut(), out.1)) }
     }
 }
 

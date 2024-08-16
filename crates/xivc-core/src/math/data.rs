@@ -111,8 +111,8 @@ pub const fn job(job: Job, field: JobField) -> u64 {
 
 /// Returns the entry for the field of a leve in the level datasheet.
 pub const fn level(level: u8, field: LevelField) -> u64 {
-    if level != 90 {
-        return 0;
+    if level != 100 {
+        panic!("only lvl 100 is supported currently.");
     }
     // just forcing level 90 for now, not like anyone actually gives a shit about lower levels
     // fuck you ucob speedrunners i guess
